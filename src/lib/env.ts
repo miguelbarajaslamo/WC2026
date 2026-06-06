@@ -1,0 +1,15 @@
+export const env = {
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  apiFootballKey: process.env.API_FOOTBALL_KEY,
+};
+
+export function requireEnv(name: keyof typeof env): string {
+  const value = env[name];
+
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+
+  return value;
+}
