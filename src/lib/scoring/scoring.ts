@@ -1,0 +1,157 @@
+import type { Match, Prediction, PredictionResult } from "@/lib/types";
+
+export type FinishedScore = {
+  homeScore: number;
+  awayScore: number;
+};
+
+export type TraditionalScoreBreakdown = {
+  points: number;
+  reason:
+    | "exact_score"
+    | "correct_result_goal_difference"
+    | "correct_result"
+    | "incorrect"
+    | "not_finished";
+};
+
+export type PotScoreBreakdown = {
+  pointsByPredictionId: Record<string, number>;
+  resultWinners: number;
+  exactWinners: string[];
+  resultPot: number;
+};
+
+export const traditionalRules = {
+  correctResult: 3,
+  correctResultGoalDifference: 4,
+  exactScore: 5,
+};
+
+export const potRules = {
+  exactScoreBonus: 2,
+};
+
+export function determineResult(score: FinishedScore): PredictionResult {
+  if (score.homeScore > score.awayScore) {
+    return "home";
+  }
+
+  if (score.awayScore > score.homeScore) {
+    return "away";
+  }
+
+  return "draw";
+}
+
+export function goalDifference(score: FinishedScore) {
+  return score.homeScore - score.awayScore;
+}
+
+export function matchFinishedScore(match: Match): FinishedScore | null {
+  if (
+    match.status !== "finished" ||
+    match.homeScore === undefined ||
+    match.awayScore === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    awayScore: match.awayScore,
+    homeScore: match.homeScore,
+  };
+}
+
+export function calculateTraditionalScore(
+  prediction: Pick<Prediction, "awayScore" | "homeScore" | "predictedResult">,
+  finalScore: FinishedScore | null,
+): TraditionalScoreBreakdown {
+  if (!finalScore) {
+    return { points: 0, reason: "not_finished" };
+  }
+
+  const predictedScore = {
+    awayScore: prediction.awayScore,
+    homeScore: prediction.homeScore,
+  };
+  const finalResult = determineResult(finalScore);
+
+  if (
+    prediction.homeScore === finalScore.homeScore &&
+    prediction.awayScore === finalScore.awayScore
+  ) {
+    return { points: traditionalRules.exactScore, reason: "exact_score" };
+  }
+
+  if (prediction.predictedResult !== finalResult) {
+    return { points: 0, reason: "incorrect" };
+  }
+
+  if (goalDifference(predictedScore) === goalDifference(finalScore)) {
+    return {
+      points: traditionalRules.correctResultGoalDifference,
+      reason: "correct_result_goal_difference",
+    };
+  }
+
+  return {
+    points: traditionalRules.correctResult,
+    reason: "correct_result",
+  };
+}
+
+export function calculatePotScores({
+  activePlayerCount,
+  finalScore,
+  predictions,
+}: {
+  activePlayerCount: number;
+  finalScore: FinishedScore | null;
+  predictions: Array<
+    Pick<Prediction, "awayScore" | "homeScore" | "id" | "predictedResult">
+  >;
+}): PotScoreBreakdown {
+  const pointsByPredictionId = Object.fromEntries(
+    predictions.map((prediction) => [prediction.id, 0]),
+  );
+
+  if (!finalScore || predictions.length === 0 || activePlayerCount === 0) {
+    return {
+      exactWinners: [],
+      pointsByPredictionId,
+      resultPot: activePlayerCount,
+      resultWinners: 0,
+    };
+  }
+
+  const finalResult = determineResult(finalScore);
+  const resultWinners = predictions.filter(
+    (prediction) => prediction.predictedResult === finalResult,
+  );
+  const exactWinners = predictions
+    .filter(
+      (prediction) =>
+        prediction.homeScore === finalScore.homeScore &&
+        prediction.awayScore === finalScore.awayScore,
+    )
+    .map((prediction) => prediction.id);
+
+  const resultShare =
+    resultWinners.length > 0 ? activePlayerCount / resultWinners.length : 0;
+
+  resultWinners.forEach((prediction) => {
+    pointsByPredictionId[prediction.id] += resultShare;
+  });
+
+  exactWinners.forEach((id) => {
+    pointsByPredictionId[id] += potRules.exactScoreBonus;
+  });
+
+  return {
+    exactWinners,
+    pointsByPredictionId,
+    resultPot: activePlayerCount,
+    resultWinners: resultWinners.length,
+  };
+}

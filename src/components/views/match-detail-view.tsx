@@ -1,0 +1,140 @@
+"use client";
+
+import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
+import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
+import { Flag } from "@/components/ui/flag";
+import { PredictionForm } from "@/components/app/prediction-form";
+import { StatusPill } from "@/components/ui/status-pill";
+import { useBootstrap } from "@/components/app/use-bootstrap";
+import { formatKickoff, formatLockTime, formatMinute, scoreText } from "@/lib/format";
+import {
+  getMatch,
+  getMatchEvents,
+  getMatchPredictions,
+  getProfile,
+  getTeam,
+  isMatchLocked,
+} from "@/lib/data/selectors";
+
+export function MatchDetailView({ matchId }: { matchId: string }) {
+  const { data, error, isLoading } = useBootstrap();
+
+  if (isLoading || !data) {
+    return <LoadingState label="Loading match" />;
+  }
+
+  if (error) {
+    return <ErrorState message={error.message} />;
+  }
+
+  const match = getMatch(data, matchId);
+
+  if (!match) {
+    return <EmptyState body="This match does not exist in the local data set." title="Match not found" />;
+  }
+
+  const home = getTeam(data, match.homeTeamId);
+  const away = getTeam(data, match.awayTeamId);
+  const events = getMatchEvents(data, match.id);
+  const predictions = getMatchPredictions(data, match.id);
+  const locked = isMatchLocked(match);
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg bg-[#022c22] p-4 text-white">
+        <div className="mb-4 flex items-center justify-between">
+          <StatusPill status={match.status} />
+          <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
+          <Link className="space-y-2" href={`/teams/${home.id}`}>
+            <Flag code={home.iso2} label={home.name} size="lg" />
+            <p className="text-lg font-black">{home.shortName}</p>
+            <p className="truncate text-xs font-bold text-white/60">{home.name}</p>
+          </Link>
+          <div>
+            <p className="font-mono text-4xl font-black">{scoreText(match)}</p>
+            <p className="mt-1 text-xs font-black uppercase tracking-wide text-emerald-200">
+              {match.groupName ?? match.stage}
+            </p>
+          </div>
+          <Link className="space-y-2" href={`/teams/${away.id}`}>
+            <Flag code={away.iso2} label={away.name} size="lg" />
+            <p className="text-lg font-black">{away.shortName}</p>
+            <p className="truncate text-xs font-bold text-white/60">{away.name}</p>
+          </Link>
+        </div>
+        <p className="mt-4 text-center text-xs font-bold text-white/65">
+          {formatKickoff(match.kickoffAt)} · {match.venue}, {match.city}
+        </p>
+      </section>
+
+      <PredictionForm data={data} match={match} />
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <h2 className="font-black">Match events</h2>
+        {events.length === 0 ? (
+          <p className="mt-2 text-sm font-bold text-stone-500">No events reported.</p>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {events.map((event) => {
+              const team = getTeam(data, event.teamId);
+              return (
+                <div
+                  className="grid grid-cols-[44px_28px_1fr] items-center gap-3 border-b border-black/10 pb-3 last:border-0 last:pb-0"
+                  key={event.id}
+                >
+                  <span className="font-mono text-sm font-black">
+                    {event.minute}&apos;
+                  </span>
+                  <Flag code={team.iso2} label={team.name} size="sm" />
+                  <p className="text-sm font-bold">
+                    {event.playerName}
+                    {event.assistName ? (
+                      <span className="block text-xs text-stone-500">
+                        Assist: {event.assistName}
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-black">Pool picks</h2>
+          <span className="text-xs font-black uppercase text-stone-500">
+            {locked ? "Revealed" : formatLockTime(match.predictionLockAt)}
+          </span>
+        </div>
+        {!locked ? (
+          <p className="text-sm font-bold text-stone-500">
+            Picks reveal for everyone once the match locks.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {predictions.map((prediction) => {
+              const profile = getProfile(data, prediction.userId);
+              return (
+                <div
+                  className="grid grid-cols-[40px_1fr_auto] items-center gap-3"
+                  key={prediction.id}
+                >
+                  <Avatar color={profile.avatarColor} name={profile.displayName} />
+                  <span className="font-bold">{profile.displayName}</span>
+                  <span className="font-mono text-lg font-black">
+                    {prediction.homeScore}-{prediction.awayScore}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

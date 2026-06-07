@@ -1,0 +1,69 @@
+"use client";
+
+import { Avatar } from "@/components/ui/avatar";
+import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { useBootstrap } from "@/components/app/use-bootstrap";
+import { getProfile } from "@/lib/data/selectors";
+
+export function PoolView() {
+  const { data, error, isLoading } = useBootstrap();
+
+  if (isLoading || !data) {
+    return <LoadingState label="Loading pool" />;
+  }
+
+  if (error) {
+    return <ErrorState message={error.message} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg bg-[#022c22] p-4 text-white">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">
+          Private pool
+        </p>
+        <h2 className="mt-1 text-2xl font-black">{data.pool.name}</h2>
+        <p className="mt-2 text-sm font-bold text-white/70">{data.pool.prizeNote}</p>
+      </section>
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <h2 className="font-black">Rules</h2>
+        <div className="mt-3 space-y-3 text-sm font-bold text-stone-600">
+          <p>Picks lock {data.pool.lockMinutesBeforeKickoff} minutes before kickoff.</p>
+          <p>Other players&apos; picks reveal when the match locks.</p>
+          <p>Official scoring mode: {data.pool.scoringMode}.</p>
+          <p>Saved early picks count if you miss the deadline.</p>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <h2 className="font-black">Members</h2>
+        <div className="mt-3 space-y-3">
+          {data.members.map((member) => {
+            const profile = getProfile(data, member.userId);
+            return (
+              <div
+                className="grid grid-cols-[40px_1fr_auto] items-center gap-3"
+                key={member.userId}
+              >
+                <Avatar color={profile.avatarColor} name={profile.displayName} />
+                <span className="font-bold">{profile.displayName}</span>
+                <span className="rounded bg-stone-100 px-2 py-1 text-[10px] font-black uppercase text-stone-500">
+                  {member.role}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <h2 className="font-black">Install app</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
+          iPhone: Share, Add to Home Screen. Android: browser menu, Install app.
+          The PWA opens without the normal browser chrome once installed.
+        </p>
+      </section>
+    </div>
+  );
+}

@@ -2,13 +2,13 @@
 
 ## Summary
 
-Build a mobile-first PWA for a private World Cup prediction pool. The app should feel like a football companion app: Today is the home screen, Match Detail is the live social center, and Fixtures/My Picks make it fast to fill predictions before lock.
+Build a mobile-first PWA named WORLD CUP PICKS for a private World Cup prediction pool. The app should feel like a serious football companion app: Today is the home screen, Match Detail is the live social center, and Fixtures/My Picks make it fast to fill predictions before lock.
 
 Data comes from Supabase for the client. API-Football is called only from server-side sync jobs, with the free tier used during development and the Pro plan used during live tournament polling.
 
 ## Core Product
 
-- Bottom navigation: Today, Fixtures, Leaderboard, My Picks.
+- Bottom navigation: Today, Fixtures, Leaderboard, Picks.
 - Secondary areas: Pool/Rules, Profile/Settings, Admin.
 - Predictions are editable until `kickoff_at - 15 minutes`.
 - Picks become visible to everyone at lock.
@@ -19,7 +19,7 @@ Data comes from Supabase for the client. API-Football is called only from server
 
 - Run `supabase/schema.sql` in the Supabase SQL editor.
 - Add app env vars from `.env.example`.
-- Use Supabase Auth, preferably magic link/email OTP for family simplicity.
+- Use Supabase Auth, preferably magic link/email OTP for simplicity.
 - Keep all API-Football keys server-only.
 - Use RLS so users can see only their own predictions before lock, then everyone’s locked predictions after lock.
 
@@ -27,10 +27,7 @@ Data comes from Supabase for the client. API-Football is called only from server
 
 - Import the repo into Vercel once the first auth flow works locally.
 - Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `API_FOOTBALL_KEY`, and `CRON_SECRET`.
-- Add scheduled sync only after the API route exists:
-  - Rare fixture sync before tournament start.
-  - Live polling every 15-30 seconds only while matches are active.
-  - Final correction sync after full time.
+- Do not rely on Vercel Hobby Cron for live polling. Deploy the Supabase Edge Function and schedule it with Supabase Cron.
 
 ## Build Phases
 
