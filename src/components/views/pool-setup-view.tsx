@@ -40,7 +40,7 @@ export function PoolSetupView() {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const body = (await response.json()) as {
+    const body = (await response.json().catch(() => ({}))) as {
       error?: string;
       inviteCode?: string;
     };
@@ -68,7 +68,7 @@ export function PoolSetupView() {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const body = (await response.json()) as { error?: string };
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
 
     if (!response.ok) {
       setSubmitting(false);

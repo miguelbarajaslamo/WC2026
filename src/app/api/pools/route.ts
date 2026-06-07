@@ -16,6 +16,21 @@ function generateInviteCode(length = 7) {
 }
 
 export async function POST(request: Request) {
+  try {
+    return await createPool(request);
+  } catch (error) {
+    console.error("[pools] failed to create pool", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Could not create pool",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+async function createPool(request: Request) {
   const { name, prizeNote } = (await request.json()) as {
     name?: string;
     prizeNote?: string;
