@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureProfile } from "@/lib/api/ensure-profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -62,6 +63,8 @@ export async function POST(request: Request) {
   if (existingMember) {
     return NextResponse.json({ ok: true, poolId: invite.pool_id, alreadyMember: true });
   }
+
+  await ensureProfile(admin, user);
 
   const { error: memberError } = await admin.from("pool_members").upsert(
     {

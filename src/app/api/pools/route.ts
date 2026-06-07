@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
+import { ensureProfile } from "@/lib/api/ensure-profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -52,6 +53,8 @@ async function createPool(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
+
+  await ensureProfile(admin, user);
 
   const { data: pool, error: poolError } = await admin
     .from("pools")
