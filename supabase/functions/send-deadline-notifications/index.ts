@@ -27,6 +27,11 @@ type PushSubscriptionRow = {
   user_id: string;
 };
 
+type ProfileRow = {
+  id: string;
+  notification_deadlines: boolean;
+};
+
 Deno.serve(async (request) => {
   const cronSecret = Deno.env.get("CRON_SECRET");
   const authorization = request.headers.get("Authorization") ?? "";
@@ -70,6 +75,20 @@ Deno.serve(async (request) => {
     .from("pool_members")
     .select("pool_id,user_id")
     .returns<PoolMemberRow[]>();
+  const memberUserIds = [...new Set((members ?? []).map((member) => member.user_id))];
+  const { data: profiles } =
+    memberUserIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("id,notification_deadlines")
+          .in("id", memberUserIds)
+          .returns<ProfileRow[]>()
+      : { data: [] };
+  const deadlineEnabledUserIds = new Set(
+    (profiles ?? [])
+      .filter((profile) => profile.notification_deadlines)
+      .map((profile) => profile.id),
+  );
   const { data: predictions } = await supabase
     .from("predictions")
     .select("pool_id,user_id,match_id")
@@ -83,7 +102,9 @@ Deno.serve(async (request) => {
     ),
   );
 
-  const jobs = (members ?? []).flatMap((member) =>
+  const jobs = (members ?? [])
+    .filter((member) => deadlineEnabledUserIds.has(member.user_id))
+    .flatMap((member) =>
     matches
       .filter(
         (match) =>
@@ -128,27 +149,57 @@ Deno.serve(async (request) => {
       (subscription) => subscription.user_id === job.user_id,
     );
 
+    if (userSubscriptions.length === 0) {
+      await supabase
+        .from("notification_jobs")
+        .update({
+          error: "No push subscription",
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", job.id);
+      continue;
+    }
+
+    const errors: string[] = [];
     for (const subscription of userSubscriptions) {
-      await webpush.sendNotification(
-        {
-          endpoint: subscription.endpoint,
-          keys: {
-            auth: subscription.auth,
-            p256dh: subscription.p256dh,
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            keys: {
+              auth: subscription.auth,
+              p256dh: subscription.p256dh,
+            },
           },
-        },
-        JSON.stringify({
-          body: job.body,
-          title: job.title,
-          url: job.url,
-        }),
-      );
-      sent += 1;
+          JSON.stringify({
+            body: job.body,
+            title: job.title,
+            url: job.url,
+          }),
+        );
+        sent += 1;
+      } catch (error) {
+        const statusCode =
+          typeof error === "object" && error && "statusCode" in error
+            ? Number((error as { statusCode?: number }).statusCode)
+            : 0;
+        errors.push(error instanceof Error ? error.message : String(error));
+
+        if (statusCode === 404 || statusCode === 410) {
+          await supabase
+            .from("push_subscriptions")
+            .delete()
+            .eq("id", subscription.id);
+        }
+      }
     }
 
     await supabase
       .from("notification_jobs")
-      .update({ sent_at: new Date().toISOString() })
+      .update({
+        error: errors.length > 0 ? errors.join("; ").slice(0, 500) : null,
+        sent_at: new Date().toISOString(),
+      })
       .eq("id", job.id);
   }
 

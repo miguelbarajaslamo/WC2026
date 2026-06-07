@@ -5,36 +5,25 @@ import { useMemo, useState } from "react";
 import { MatchRow } from "@/components/app/match-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
+import { cn } from "@/lib/cn";
 import { formatMatchDate } from "@/lib/format";
 import {
-  getTeam,
-  getUserPrediction,
-  getVisibleMatches,
-  isMatchLocked,
-} from "@/lib/data/selectors";
+  filterFixturesMatches,
+  type FixturesFilter,
+} from "@/lib/match-filters";
 
 export function FixturesView() {
   const { data, error, isLoading } = useBootstrap();
   const [query, setQuery] = useState("");
-  const [missingOnly, setMissingOnly] = useState(false);
+  const [filter, setFilter] = useState<FixturesFilter>("all");
 
   const matches = useMemo(() => {
     if (!data) {
       return [];
     }
 
-    return getVisibleMatches(data).filter((match) => {
-      const home = getTeam(data, match.homeTeamId);
-      const away = getTeam(data, match.awayTeamId);
-      const label = `${home.name} ${away.name} ${home.shortName} ${away.shortName} ${match.groupName ?? ""}`.toLowerCase();
-      const hasPick = Boolean(getUserPrediction(data, match.id));
-
-      return (
-        label.includes(query.toLowerCase()) &&
-        (!missingOnly || (!hasPick && !isMatchLocked(match)))
-      );
-    });
-  }, [data, missingOnly, query]);
+    return filterFixturesMatches({ data, filter, query });
+  }, [data, filter, query]);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading fixtures" />;
@@ -56,18 +45,31 @@ export function FixturesView() {
             value={query}
           />
         </label>
-        <button
-          className="mt-3 h-10 rounded-md bg-stone-950 px-3 text-xs font-black uppercase text-white aria-pressed:bg-amber-400 aria-pressed:text-stone-950"
-          aria-pressed={missingOnly}
-          onClick={() => setMissingOnly((value) => !value)}
-          type="button"
-        >
-          Missing only
-        </button>
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {([
+            ["all", "All"],
+            ["missing", "Missing"],
+            ["upcoming", "Upcoming"],
+            ["finished", "Finished"],
+          ] as Array<[FixturesFilter, string]>).map(([value, label]) => (
+            <button
+              aria-pressed={filter === value}
+              className={cn(
+                "h-10 rounded-md bg-stone-100 px-2 text-[10px] font-black uppercase text-stone-600",
+                filter === value && "bg-stone-950 text-white",
+              )}
+              key={value}
+              onClick={() => setFilter(value)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {matches.length === 0 ? (
-        <EmptyState body="Try another search or turn off missing-only." title="No fixtures" />
+        <EmptyState body="Try another search or fixture filter." title="No fixtures" />
       ) : (
         <div className="space-y-4">
           {matches.map((match, index) => {

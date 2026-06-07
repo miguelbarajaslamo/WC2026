@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
+import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { PredictionResult } from "@/lib/types";
 
 type PredictionPayload = {
   poolId?: string;
   matchId?: string;
-  predictedResult?: PredictionResult;
   homeScore?: number;
   awayScore?: number;
 };
@@ -16,9 +15,8 @@ export async function POST(request: Request) {
   if (
     !payload.poolId ||
     !payload.matchId ||
-    !payload.predictedResult ||
-    payload.homeScore === undefined ||
-    payload.awayScore === undefined
+    !isValidPredictionScore(payload.homeScore) ||
+    !isValidPredictionScore(payload.awayScore)
   ) {
     return NextResponse.json({ error: "Invalid prediction payload" }, { status: 400 });
   }
@@ -33,6 +31,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  const [{ data: member }, { data: match }] = await Promise.all([
+    supabase
+      .from("pool_members")
+      .select("pool_id")
+      .eq("pool_id", payload.poolId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("matches")
+      .select("id,prediction_lock_at")
+      .eq("id", payload.matchId)
+      .maybeSingle(),
+  ]);
+
+  if (!member) {
+    return NextResponse.json({ error: "You are not a member of this pool" }, { status: 403 });
+  }
+
+  if (!match) {
+    return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  }
+
+  if (new Date(match.prediction_lock_at) <= new Date()) {
+    return NextResponse.json({ error: "This match is locked" }, { status: 403 });
+  }
+
+  const predictedResult = scoreResult(payload.homeScore, payload.awayScore);
+
   const { data, error } = await supabase
     .from("predictions")
     .upsert(
@@ -41,7 +67,7 @@ export async function POST(request: Request) {
         home_score: payload.homeScore,
         match_id: payload.matchId,
         pool_id: payload.poolId,
-        predicted_result: payload.predictedResult,
+        predicted_result: predictedResult,
         updated_at: new Date().toISOString(),
         user_id: user.id,
       },
@@ -51,7 +77,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Could not save prediction" }, { status: 500 });
   }
 
   return NextResponse.json({ prediction: data });

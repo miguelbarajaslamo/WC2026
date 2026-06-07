@@ -42,10 +42,9 @@ export function PlayerDetailView({ playerId }: { playerId: string }) {
         </div>
       </section>
 
-      <section className="grid grid-cols-3 gap-2">
+      <section className="grid grid-cols-2 gap-2">
         <Metric label="Today" value={row?.todayPoints ?? 0} />
         <Metric label="Exact" value={row?.exactScores ?? 0} />
-        <Metric label="Risk" value={row?.riskyHits ?? 0} />
       </section>
 
       <section className="space-y-3">
@@ -53,7 +52,13 @@ export function PlayerDetailView({ playerId }: { playerId: string }) {
           Picks history
         </h2>
         {matchesWithPicks.map((match) => (
-          <MatchRow data={data} key={match.id} match={match} />
+          <MatchRow
+            data={data}
+            key={match.id}
+            match={match}
+            predictionLabelPrefix={`${profile.displayName}'s pick`}
+            predictionUserId={playerId}
+          />
         ))}
       </section>
     </div>

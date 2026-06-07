@@ -20,7 +20,7 @@ export function InviteView({ code }: { code: string }) {
         </p>
         <Link
           className="mt-5 grid h-12 place-items-center rounded-md bg-stone-950 text-sm font-black uppercase tracking-wide text-white"
-          href={`/login?next=/onboarding&invite=${code}`}
+          href={`/login?next=/onboarding&invite=${encodeURIComponent(code)}`}
         >
           Continue
         </Link>

@@ -56,6 +56,21 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "score_snapshots" }, () => {
         void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "bonus_winners" }, () => {
+        void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "bonus_score_snapshots" }, () => {
+        void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "match_player_stats" }, () => {
+        void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_player_stat_snapshots" }, () => {
+        void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_overrides" }, () => {
+        void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      })
       .subscribe();
 
     return () => {

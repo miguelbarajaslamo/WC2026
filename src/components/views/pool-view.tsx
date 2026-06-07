@@ -31,7 +31,19 @@ export function PoolView() {
         <div className="mt-3 space-y-3 text-sm font-bold text-stone-600">
           <p>Picks lock {data.pool.lockMinutesBeforeKickoff} minutes before kickoff.</p>
           <p>Other players&apos; picks reveal when the match locks.</p>
+          <p>
+            Traditional scoring: correct winner or draw gives 3 points. Exact
+            score adds 3 more, for 6 total.
+          </p>
+          <p>
+            Pot scoring, if selected before lock, splits the match pot among
+            correct result picks and adds a 2 point exact-score bonus.
+          </p>
           <p>Official scoring mode: {data.pool.scoringMode}.</p>
+          <p>
+            Tournament specials lock before the first kickoff
+            {data.pool.bonusLockAt ? ` (${new Date(data.pool.bonusLockAt).toLocaleString()})` : ""}.
+          </p>
           <p>Saved early picks count if you miss the deadline.</p>
         </div>
       </section>

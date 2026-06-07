@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "A private World Cup prediction pool.",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "black",
     title: "WORLD CUP PICKS",
   },
   applicationName: "WORLD CUP PICKS",
@@ -32,7 +32,6 @@ export const viewport: Viewport = {
   themeColor: "#022c22",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({

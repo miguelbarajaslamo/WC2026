@@ -15,7 +15,27 @@ export function formatLocalTime(value: string) {
 }
 
 export function formatLocalDateTime(value: string) {
-  return format(parseISO(value), "EEE d MMM, HH:mm");
+  return format(parseISO(value), "EEE d MMM · HH:mm");
+}
+
+export function formatMatchDateTime(value: string) {
+  return formatLocalDateTime(value);
+}
+
+export function formatMatchTiming({
+  kickoffAt,
+  lockAt,
+}: {
+  kickoffAt: string;
+  lockAt?: string;
+}) {
+  const kickoff = formatMatchDateTime(kickoffAt);
+
+  if (!lockAt) {
+    return kickoff;
+  }
+
+  return `${kickoff} · Locks ${formatLocalTime(lockAt)}`;
 }
 
 export function formatShortCountdown(value: string, now = new Date()) {

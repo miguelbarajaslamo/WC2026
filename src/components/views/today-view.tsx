@@ -5,6 +5,7 @@ import { Countdown } from "@/components/app/countdown";
 import { Section } from "@/components/ui/section";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { MatchRow } from "@/components/app/match-row";
+import { TournamentSpecialsBanner } from "@/components/app/tournament-specials-banner";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import {
   getMissingUnlockedMatches,
@@ -31,6 +32,9 @@ export function TodayView() {
   const finished = matches.filter((match) => match.status === "finished").slice(0, 3);
   const missing = getMissingUnlockedMatches(data).slice(0, 3);
   const nextLock = getNextLockMatch(data);
+  const currentRank = data.leaderboard.find(
+    (row) => row.userId === data.currentUserId,
+  )?.rank;
 
   return (
     <div className="space-y-5">
@@ -50,7 +54,7 @@ export function TodayView() {
           ) : (
             <div className="rounded-md bg-white px-3 py-2 text-right text-stone-950">
               <p className="font-mono text-xl font-black">
-                {data.leaderboard[1]?.rank ?? "-"}
+                {currentRank ?? "-"}
               </p>
               <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
                 Your rank
@@ -62,6 +66,8 @@ export function TodayView() {
           Times shown in your device timezone: {getLocalTimeZone()}
         </p>
       </section>
+
+      <TournamentSpecialsBanner data={data} />
 
       {missing.length > 0 ? (
         <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">

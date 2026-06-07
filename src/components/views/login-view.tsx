@@ -39,14 +39,16 @@ export function LoginView() {
         </p>
         <h1 className="mt-2 text-3xl font-black">Sign in</h1>
         <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-          Enter your email to receive a magic link. Auth wiring is ready for Supabase.
+          Enter your email to receive a magic link for WORLD CUP PICKS.
         </p>
         <label className="mt-5 grid grid-cols-[20px_1fr] items-center gap-2 rounded-md border border-black/10 bg-stone-50 px-3 py-3">
           <Mail size={18} />
           <input
             className="min-w-0 bg-transparent text-sm font-bold outline-none"
+            autoComplete="email"
             onChange={(event) => setEmail(event.target.value)}
             placeholder="name@example.com"
+            required
             type="email"
             value={email}
           />

@@ -3,8 +3,8 @@ import type { BonusPick, BonusPickType } from "@/lib/types";
 export const bonusRules: Record<BonusPickType, number> = {
   champion: 10,
   finalist: 5,
-  golden_glove: 6,
   most_assists: 6,
+  most_cards_country: 6,
   top_scorer: 8,
 };
 

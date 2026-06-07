@@ -46,10 +46,13 @@ begin
     'finalist',
     'top_scorer',
     'most_assists',
-    'golden_glove'
+    'golden_glove',
+    'most_cards_country'
   );
 exception when duplicate_object then null;
 end $$;
+
+alter type public.bonus_pick_type add value if not exists 'most_cards_country';
 
 create table if not exists public.pools (
   id uuid primary key default gen_random_uuid(),
@@ -57,9 +60,13 @@ create table if not exists public.pools (
   prize_note text,
   scoring_mode public.scoring_mode not null default 'traditional',
   scoring_locked_at timestamptz,
+  bonus_lock_at timestamptz,
   lock_minutes_before_kickoff integer not null default 15,
   created_at timestamptz not null default now()
 );
+
+alter table public.pools
+  add column if not exists bonus_lock_at timestamptz;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -99,6 +106,25 @@ create table if not exists public.teams (
   iso2 text,
   group_name text,
   flag_url text
+);
+
+create table if not exists public.players (
+  id text primary key,
+  name text not null,
+  photo_url text,
+  nationality text,
+  position text,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.team_squad_members (
+  team_id text not null references public.teams(id) on delete cascade,
+  player_id text not null references public.players(id) on delete cascade,
+  shirt_number integer,
+  position text,
+  active boolean not null default true,
+  updated_at timestamptz not null default now(),
+  primary key (team_id, player_id)
 );
 
 create table if not exists public.matches (
@@ -151,6 +177,50 @@ create table if not exists public.match_events (
   unique (match_id, provider_event_id)
 );
 
+create table if not exists public.match_player_stats (
+  id uuid primary key default gen_random_uuid(),
+  match_id text not null references public.matches(id) on delete cascade,
+  team_id text references public.teams(id) on delete set null,
+  player_id text,
+  player_name text not null,
+  player_photo text,
+  minutes integer not null default 0,
+  position text,
+  goals integer not null default 0,
+  assists integer not null default 0,
+  yellow_cards integer not null default 0,
+  red_cards integer not null default 0,
+  saves integer not null default 0,
+  clean_sheets integer not null default 0,
+  rating numeric(5, 2),
+  provider_freshness_at timestamptz,
+  updated_at timestamptz not null default now(),
+  unique (match_id, team_id, player_name)
+);
+
+alter table public.match_player_stats
+  add column if not exists minutes integer not null default 0,
+  add column if not exists position text,
+  add column if not exists saves integer not null default 0,
+  add column if not exists clean_sheets integer not null default 0,
+  add column if not exists rating numeric(5, 2),
+  add column if not exists provider_freshness_at timestamptz;
+
+create table if not exists public.tournament_player_stat_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  player_id text references public.players(id) on delete set null,
+  player_name text not null,
+  team_id text references public.teams(id) on delete set null,
+  goals integer not null default 0,
+  assists integer not null default 0,
+  yellow_cards integer not null default 0,
+  red_cards integer not null default 0,
+  saves integer not null default 0,
+  clean_sheets integer not null default 0,
+  updated_at timestamptz not null default now(),
+  unique (player_name, team_id)
+);
+
 create table if not exists public.standings (
   pool_id uuid references public.pools(id) on delete cascade,
   team_id text references public.teams(id) on delete cascade,
@@ -184,10 +254,14 @@ create table if not exists public.bonus_pick_options (
   type public.bonus_pick_type not null,
   label text not null,
   team_id text references public.teams(id) on delete set null,
+  player_id text references public.players(id) on delete set null,
   player_name text,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.bonus_pick_options
+  add column if not exists player_id text references public.players(id) on delete set null;
 
 create table if not exists public.bonus_picks (
   id uuid primary key default gen_random_uuid(),
@@ -207,11 +281,38 @@ create table if not exists public.bonus_score_snapshots (
   pool_id uuid not null references public.pools(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   type public.bonus_pick_type not null,
+  slot integer not null default 1,
   points numeric(8, 2) not null default 0,
   reason text not null,
   created_at timestamptz not null default now(),
-  unique (pool_id, user_id, type)
+  unique (pool_id, user_id, type, slot)
 );
+
+alter table public.bonus_score_snapshots
+  add column if not exists slot integer not null default 1;
+
+alter table public.bonus_score_snapshots
+  drop constraint if exists bonus_score_snapshots_pool_id_user_id_type_key;
+
+create unique index if not exists bonus_score_snapshots_pool_user_type_slot_idx
+  on public.bonus_score_snapshots (pool_id, user_id, type, slot);
+
+create table if not exists public.bonus_winners (
+  id uuid primary key default gen_random_uuid(),
+  pool_id uuid not null references public.pools(id) on delete cascade,
+  type public.bonus_pick_type not null,
+  slot integer not null default 1,
+  option_id text not null references public.bonus_pick_options(id) on delete restrict,
+  decided_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (pool_id, type, slot, option_id)
+);
+
+alter table public.bonus_winners
+  drop constraint if exists bonus_winners_pool_id_type_slot_key;
+
+create unique index if not exists bonus_winners_pool_type_slot_option_idx
+  on public.bonus_winners (pool_id, type, slot, option_id);
 
 create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -284,6 +385,24 @@ begin
 end;
 $$;
 
+create or replace function public.try_world_cup_sync_lock(lock_key bigint)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select pg_try_advisory_lock(lock_key);
+$$;
+
+create or replace function public.release_world_cup_sync_lock(lock_key bigint)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select pg_advisory_unlock(lock_key);
+$$;
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
@@ -294,14 +413,19 @@ alter table public.profiles enable row level security;
 alter table public.pool_members enable row level security;
 alter table public.invites enable row level security;
 alter table public.teams enable row level security;
+alter table public.players enable row level security;
+alter table public.team_squad_members enable row level security;
 alter table public.matches enable row level security;
 alter table public.predictions enable row level security;
 alter table public.match_events enable row level security;
+alter table public.match_player_stats enable row level security;
+alter table public.tournament_player_stat_snapshots enable row level security;
 alter table public.standings enable row level security;
 alter table public.score_snapshots enable row level security;
 alter table public.bonus_pick_options enable row level security;
 alter table public.bonus_picks enable row level security;
 alter table public.bonus_score_snapshots enable row level security;
+alter table public.bonus_winners enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.notification_jobs enable row level security;
 alter table public.sync_runs enable row level security;
@@ -350,6 +474,18 @@ create policy "authenticated users can read teams"
   to authenticated
   using (true);
 
+drop policy if exists "authenticated users can read players" on public.players;
+create policy "authenticated users can read players"
+  on public.players for select
+  to authenticated
+  using (true);
+
+drop policy if exists "authenticated users can read squad members" on public.team_squad_members;
+create policy "authenticated users can read squad members"
+  on public.team_squad_members for select
+  to authenticated
+  using (true);
+
 drop policy if exists "authenticated users can read matches" on public.matches;
 create policy "authenticated users can read matches"
   on public.matches for select
@@ -362,22 +498,49 @@ create policy "authenticated users can read match events"
   to authenticated
   using (true);
 
-drop policy if exists "authenticated users can read standings" on public.standings;
-create policy "authenticated users can read standings"
-  on public.standings for select
+drop policy if exists "authenticated users can read match player stats" on public.match_player_stats;
+create policy "authenticated users can read match player stats"
+  on public.match_player_stats for select
   to authenticated
   using (true);
 
+drop policy if exists "authenticated users can read tournament player stats" on public.tournament_player_stat_snapshots;
+create policy "authenticated users can read tournament player stats"
+  on public.tournament_player_stat_snapshots for select
+  to authenticated
+  using (true);
+
+drop policy if exists "authenticated users can read standings" on public.standings;
+drop policy if exists "members can read standings" on public.standings;
+create policy "members can read standings"
+  on public.standings for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = standings.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
+
 drop policy if exists "users can read own predictions before lock and all after lock" on public.predictions;
-create policy "users can read own predictions before lock and all after lock"
+drop policy if exists "pool members can read own predictions before lock and pool predictions after lock" on public.predictions;
+create policy "pool members can read own predictions before lock and pool predictions after lock"
   on public.predictions for select
   to authenticated
   using (
-    user_id = auth.uid()
-    or exists (
-      select 1 from public.matches
-      where matches.id = predictions.match_id
-        and matches.prediction_lock_at <= now()
+    exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = predictions.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+    and (
+      user_id = auth.uid()
+      or exists (
+        select 1 from public.matches
+        where matches.id = predictions.match_id
+          and matches.prediction_lock_at <= now()
+      )
     )
   );
 
@@ -406,12 +569,24 @@ create policy "users can update own unlocked predictions"
   using (
     user_id = auth.uid()
     and exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = predictions.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+    and exists (
       select 1 from public.matches
       where matches.id = predictions.match_id
         and matches.prediction_lock_at > now()
     )
   )
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = predictions.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "members can read score snapshots" on public.score_snapshots;
 create policy "members can read score snapshots"
@@ -432,10 +607,25 @@ create policy "members can read bonus options"
   using (true);
 
 drop policy if exists "users can read own bonus picks" on public.bonus_picks;
-create policy "users can read own bonus picks"
+drop policy if exists "pool members can read own bonus picks before lock and pool bonus picks after lock" on public.bonus_picks;
+create policy "pool members can read own bonus picks before lock and pool bonus picks after lock"
   on public.bonus_picks for select
   to authenticated
-  using (user_id = auth.uid());
+  using (
+    exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = bonus_picks.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+    and (
+      user_id = auth.uid()
+      or exists (
+        select 1 from public.pools
+        where pools.id = bonus_picks.pool_id
+          and coalesce(pools.bonus_lock_at, 'infinity'::timestamptz) <= now()
+      )
+    )
+  );
 
 drop policy if exists "users can upsert own bonus picks" on public.bonus_picks;
 create policy "users can upsert own bonus picks"
@@ -448,14 +638,33 @@ create policy "users can upsert own bonus picks"
       where pool_members.pool_id = bonus_picks.pool_id
         and pool_members.user_id = auth.uid()
     )
+    and exists (
+      select 1 from public.pools
+      where pools.id = bonus_picks.pool_id
+        and coalesce(pools.bonus_lock_at, 'infinity'::timestamptz) > now()
+    )
   );
 
 drop policy if exists "users can update own bonus picks" on public.bonus_picks;
 create policy "users can update own bonus picks"
   on public.bonus_picks for update
   to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+  using (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.pools
+      where pools.id = bonus_picks.pool_id
+        and coalesce(pools.bonus_lock_at, 'infinity'::timestamptz) > now()
+    )
+  )
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = bonus_picks.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "members can read bonus score snapshots" on public.bonus_score_snapshots;
 create policy "members can read bonus score snapshots"
@@ -465,6 +674,18 @@ create policy "members can read bonus score snapshots"
     exists (
       select 1 from public.pool_members
       where pool_members.pool_id = bonus_score_snapshots.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "members can read bonus winners" on public.bonus_winners;
+create policy "members can read bonus winners"
+  on public.bonus_winners for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = bonus_winners.pool_id
         and pool_members.user_id = auth.uid()
     )
   );

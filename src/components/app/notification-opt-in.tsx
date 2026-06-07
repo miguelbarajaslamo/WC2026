@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function base64ToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -19,6 +19,25 @@ function base64ToUint8Array(value: string) {
 export function NotificationOptIn() {
   const [message, setMessage] = useState("Not enabled");
   const [busy, setBusy] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    async function checkExistingSubscription() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+      const subscription = await registration?.pushManager.getSubscription();
+
+      if (subscription) {
+        setEnabled(true);
+        setMessage("Deadline reminders enabled.");
+      }
+    }
+
+    void checkExistingSubscription();
+  }, []);
 
   async function enableNotifications() {
     setBusy(true);
@@ -57,7 +76,42 @@ export function NotificationOptIn() {
       });
       const body = (await response.json()) as { error?: string };
 
-      setMessage(response.ok ? "Deadline reminders enabled." : body.error ?? "Could not save subscription.");
+      if (response.ok) {
+        setEnabled(true);
+        setMessage("Deadline reminders enabled.");
+      } else {
+        setMessage(body.error ?? "Could not save subscription.");
+      }
+    } catch {
+      setMessage("Could not enable reminders.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disableNotifications() {
+    setBusy(true);
+
+    try {
+      const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+      const subscription = await registration?.pushManager.getSubscription();
+
+      if (!subscription) {
+        setEnabled(false);
+        setMessage("Not enabled");
+        return;
+      }
+
+      await fetch("/api/push/unsubscribe", {
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      await subscription.unsubscribe();
+      setEnabled(false);
+      setMessage("Not enabled");
+    } catch {
+      setMessage("Could not disable reminders.");
     } finally {
       setBusy(false);
     }
@@ -76,10 +130,10 @@ export function NotificationOptIn() {
         <button
           className="rounded-md bg-stone-950 px-3 py-2 text-xs font-black uppercase text-white disabled:bg-stone-300"
           disabled={busy}
-          onClick={enableNotifications}
+          onClick={enabled ? disableNotifications : enableNotifications}
           type="button"
         >
-          Enable
+          {enabled ? "Disable" : "Enable"}
         </button>
       </div>
       <p className="mt-3 text-xs font-bold leading-5 text-stone-500">

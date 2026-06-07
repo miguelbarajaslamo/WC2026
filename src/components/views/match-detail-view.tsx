@@ -1,13 +1,15 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { Flag } from "@/components/ui/flag";
 import { PredictionForm } from "@/components/app/prediction-form";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useBootstrap } from "@/components/app/use-bootstrap";
-import { formatKickoff, formatLockTime, formatMinute, scoreText } from "@/lib/format";
+import { formatLockTime, formatMinute, scoreText } from "@/lib/format";
 import {
   getMatch,
   getMatchEvents,
@@ -17,9 +19,17 @@ import {
   isMatchLocked,
 } from "@/lib/data/selectors";
 import { predictionResultLabel } from "@/lib/predictions";
+import { formatMatchTiming } from "@/lib/time";
 
-export function MatchDetailView({ matchId }: { matchId: string }) {
+export function MatchDetailView({
+  from,
+  matchId,
+}: {
+  from: string;
+  matchId: string;
+}) {
   const { data, error, isLoading } = useBootstrap();
+  const router = useRouter();
 
   if (isLoading || !data) {
     return <LoadingState label="Loading match" />;
@@ -50,6 +60,22 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
 
   return (
     <div className="space-y-4">
+      <button
+        className="inline-flex h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-black text-stone-950 shadow-sm ring-1 ring-black/10"
+        onClick={() => {
+          if (window.history.length > 1) {
+            router.back();
+            return;
+          }
+
+          router.push(from || "/");
+        }}
+        type="button"
+      >
+        <ArrowLeft size={17} />
+        Back
+      </button>
+
       <section className="rounded-lg bg-[#022c22] p-4 text-white">
         <div className="mb-4 flex items-center justify-between">
           <StatusPill status={match.status} />
@@ -74,7 +100,10 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
           </Link>
         </div>
         <p className="mt-4 text-center text-xs font-bold text-white/65">
-          {formatKickoff(match.kickoffAt)} · {match.venue}, {match.city}
+          {formatMatchTiming({
+            kickoffAt: match.kickoffAt,
+            lockAt: match.predictionLockAt,
+          })} · {match.venue}, {match.city}
         </p>
       </section>
 

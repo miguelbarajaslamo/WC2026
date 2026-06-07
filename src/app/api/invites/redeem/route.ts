@@ -38,7 +38,29 @@ export async function POST(request: Request) {
   }
 
   if (invite.max_uses && invite.use_count >= invite.max_uses) {
+    const { data: existingMember } = await admin
+      .from("pool_members")
+      .select("pool_id")
+      .eq("pool_id", invite.pool_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existingMember) {
+      return NextResponse.json({ ok: true, poolId: invite.pool_id, alreadyMember: true });
+    }
+
     return NextResponse.json({ error: "Invite has already been used" }, { status: 410 });
+  }
+
+  const { data: existingMember } = await admin
+    .from("pool_members")
+    .select("pool_id")
+    .eq("pool_id", invite.pool_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existingMember) {
+    return NextResponse.json({ ok: true, poolId: invite.pool_id, alreadyMember: true });
   }
 
   const { error: memberError } = await admin.from("pool_members").upsert(

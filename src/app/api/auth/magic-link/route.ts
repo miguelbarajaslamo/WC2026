@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { safeRelativeRedirect } from "@/lib/auth/redirect";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const origin = new URL(request.url).origin;
   const redirectUrl = new URL("/auth/callback", origin);
-  redirectUrl.searchParams.set("next", next ?? "/");
+  redirectUrl.searchParams.set("next", safeRelativeRedirect(next));
 
   if (invite) {
     redirectUrl.searchParams.set("invite", invite);

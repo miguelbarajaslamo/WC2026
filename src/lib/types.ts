@@ -12,20 +12,39 @@ export type ScoringMode = "traditional" | "pot";
 
 export type EventType = "goal" | "yellow_card" | "red_card" | "substitution";
 
-export type BonusPickType =
-  | "champion"
-  | "finalist"
-  | "top_scorer"
-  | "most_assists"
-  | "golden_glove";
+export const supportedBonusPickTypes = [
+  "champion",
+  "finalist",
+  "top_scorer",
+  "most_assists",
+  "most_cards_country",
+] as const;
+
+export type BonusPickType = (typeof supportedBonusPickTypes)[number];
 
 export type Team = {
   id: string;
   name: string;
   shortName: string;
-  iso2: string;
-  groupName: string;
+  iso2?: string;
+  groupName?: string;
   flagUrl?: string;
+};
+
+export type Player = {
+  id: string;
+  name: string;
+  nationality?: string;
+  photoUrl?: string;
+  position?: string;
+};
+
+export type TeamSquadMember = {
+  active: boolean;
+  playerId: string;
+  position?: string;
+  shirtNumber?: number;
+  teamId: string;
 };
 
 export type Match = {
@@ -60,6 +79,23 @@ export type MatchEvent = {
   detail?: string;
 };
 
+export type MatchPlayerStat = {
+  assists: number;
+  cleanSheets: number;
+  goals: number;
+  matchId: string;
+  minutes: number;
+  playerId?: string;
+  playerName: string;
+  position?: string;
+  rating?: number;
+  redCards: number;
+  saves: number;
+  teamId: string;
+  updatedAt?: string;
+  yellowCards: number;
+};
+
 export type Prediction = {
   id: string;
   poolId: string;
@@ -76,6 +112,8 @@ export type Profile = {
   id: string;
   displayName: string;
   avatarColor: string;
+  notificationDeadlines: boolean;
+  notificationLiveScores: boolean;
 };
 
 export type PoolMember = {
@@ -90,6 +128,7 @@ export type Pool = {
   prizeNote: string;
   scoringMode: ScoringMode;
   scoringLockedAt?: string;
+  bonusLockAt?: string;
   lockMinutesBeforeKickoff: number;
 };
 
@@ -119,10 +158,10 @@ export type StandingRow = {
 
 export type SyncRun = {
   id: string;
-  source: "api-football" | "manual";
+  source: string;
   status: "ok" | "warning" | "error";
   startedAt: string;
-  finishedAt: string;
+  finishedAt?: string;
   requestsUsed: number;
   message: string;
 };
@@ -131,6 +170,7 @@ export type BonusPickOption = {
   id: string;
   type: BonusPickType;
   label: string;
+  playerId?: string;
   teamId?: string;
   playerName?: string;
 };
@@ -151,8 +191,61 @@ export type BonusScoreSnapshot = {
   poolId: string;
   userId: string;
   type: BonusPickType;
+  slot: number;
   points: number;
   reason: string;
+};
+
+export type PlayerCategoryRow = {
+  rank: number;
+  playerName: string;
+  teamId?: string;
+  teamName?: string;
+  teamShortName?: string;
+  iso2?: string;
+  value: number;
+  updatedAt?: string;
+};
+
+export type CountryCardCategoryRow = {
+  rank: number;
+  teamId: string;
+  teamName: string;
+  teamShortName: string;
+  iso2?: string;
+  points: number;
+  yellowCards: number;
+  redCards: number;
+  updatedAt?: string;
+};
+
+export type CategoryLeaderboards = {
+  topScorers: PlayerCategoryRow[];
+  topAssists: PlayerCategoryRow[];
+  countryCardPoints: CountryCardCategoryRow[];
+};
+
+export type TournamentPlayerStatSnapshot = {
+  assists: number;
+  cleanSheets: number;
+  goals: number;
+  playerId?: string;
+  playerName: string;
+  redCards: number;
+  saves: number;
+  teamId: string;
+  updatedAt?: string;
+  yellowCards: number;
+};
+
+export type AdminOverride = {
+  createdAt: string;
+  createdBy?: string;
+  id: string;
+  matchId?: string;
+  overrideType: string;
+  payload: Record<string, unknown>;
+  reason?: string;
 };
 
 export type PushSubscriptionRecord = {
@@ -165,19 +258,27 @@ export type PushSubscriptionRecord = {
 };
 
 export type BootstrapData = {
+  authMode: "authenticated" | "demo";
   generatedAt: string;
   currentUserId: string;
+  currentMemberRole: "admin" | "player";
   pool: Pool;
   profiles: Profile[];
   members: PoolMember[];
   teams: Team[];
+  players: Player[];
+  squadMembers: TeamSquadMember[];
   matches: Match[];
   events: MatchEvent[];
+  matchPlayerStats: MatchPlayerStat[];
   predictions: Prediction[];
   leaderboard: LeaderboardRow[];
   standings: Record<string, StandingRow[]>;
   syncRuns: SyncRun[];
+  adminOverrides: AdminOverride[];
   bonusPickOptions: BonusPickOption[];
   bonusPicks: BonusPick[];
   bonusScoreSnapshots: BonusScoreSnapshot[];
+  playerStatSnapshots: TournamentPlayerStatSnapshot[];
+  categoryLeaderboards: CategoryLeaderboards;
 };

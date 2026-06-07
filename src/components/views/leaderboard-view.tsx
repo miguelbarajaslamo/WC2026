@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, BarChart3, Minus } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -29,6 +29,13 @@ export function LeaderboardView() {
         <p className="mt-2 text-sm font-bold text-white/70">
           Scores update after finished matches and admin recalculations.
         </p>
+        <Link
+          className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-white px-3 text-xs font-black uppercase tracking-wide text-emerald-950"
+          href="/stats"
+        >
+          <BarChart3 size={16} />
+          Categories
+        </Link>
       </section>
 
       <div className="space-y-2">

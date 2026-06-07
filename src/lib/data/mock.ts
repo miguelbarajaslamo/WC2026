@@ -7,12 +7,17 @@ import type {
   LeaderboardRow,
   Match,
   MatchEvent,
+  MatchPlayerStat,
   Pool,
   Prediction,
+  Player,
   Profile,
   StandingRow,
   Team,
+  TeamSquadMember,
+  TournamentPlayerStatSnapshot,
 } from "@/lib/types";
+import { aggregateCategoryLeaderboards } from "@/lib/stats/category-leaderboards";
 
 const pool: Pool = {
   id: "pool-barajas",
@@ -23,11 +28,11 @@ const pool: Pool = {
 };
 
 const profiles: Profile[] = [
-  { id: "user-miguel", displayName: "Miguel", avatarColor: "#006a4e" },
-  { id: "user-lina", displayName: "Lina", avatarColor: "#d5a021" },
-  { id: "user-anna", displayName: "Anna", avatarColor: "#c1121f" },
-  { id: "user-oscar", displayName: "Oscar", avatarColor: "#1746a2" },
-  { id: "user-dad", displayName: "Dad", avatarColor: "#111827" },
+  { id: "user-miguel", displayName: "Miguel", avatarColor: "#006a4e", notificationDeadlines: true, notificationLiveScores: false },
+  { id: "user-lina", displayName: "Lina", avatarColor: "#d5a021", notificationDeadlines: true, notificationLiveScores: false },
+  { id: "user-anna", displayName: "Anna", avatarColor: "#c1121f", notificationDeadlines: true, notificationLiveScores: false },
+  { id: "user-oscar", displayName: "Oscar", avatarColor: "#1746a2", notificationDeadlines: true, notificationLiveScores: false },
+  { id: "user-dad", displayName: "Dad", avatarColor: "#111827", notificationDeadlines: true, notificationLiveScores: false },
 ];
 
 const teams: Team[] = [
@@ -43,6 +48,26 @@ const teams: Team[] = [
   { id: "fra", name: "France", shortName: "FRA", iso2: "fr", groupName: "Group B" },
   { id: "sen", name: "Senegal", shortName: "SEN", iso2: "sn", groupName: "Group B" },
   { id: "ger", name: "Germany", shortName: "GER", iso2: "de", groupName: "Group B" },
+];
+
+const players: Player[] = [
+  { id: "player-isak", name: "Alexander Isak", nationality: "Sweden", position: "Attacker" },
+  { id: "player-kulusevski", name: "Dejan Kulusevski", nationality: "Sweden", position: "Midfielder" },
+  { id: "player-vini", name: "Vinicius Jr.", nationality: "Brazil", position: "Attacker" },
+  { id: "player-rodrygo", name: "Rodrygo", nationality: "Brazil", position: "Attacker" },
+  { id: "player-mbappe", name: "Kylian Mbappe", nationality: "France", position: "Attacker" },
+  { id: "player-griezmann", name: "Antoine Griezmann", nationality: "France", position: "Midfielder" },
+  { id: "player-rudiger", name: "Antonio Rudiger", nationality: "Germany", position: "Defender" },
+];
+
+const squadMembers: TeamSquadMember[] = [
+  { active: true, playerId: "player-isak", position: "Attacker", shirtNumber: 9, teamId: "swe" },
+  { active: true, playerId: "player-kulusevski", position: "Midfielder", shirtNumber: 21, teamId: "swe" },
+  { active: true, playerId: "player-vini", position: "Attacker", shirtNumber: 7, teamId: "bra" },
+  { active: true, playerId: "player-rodrygo", position: "Attacker", shirtNumber: 11, teamId: "bra" },
+  { active: true, playerId: "player-mbappe", position: "Attacker", shirtNumber: 10, teamId: "fra" },
+  { active: true, playerId: "player-griezmann", position: "Midfielder", shirtNumber: 7, teamId: "fra" },
+  { active: true, playerId: "player-rudiger", position: "Defender", shirtNumber: 2, teamId: "ger" },
 ];
 
 function buildMatches(now: Date): Match[] {
@@ -183,6 +208,22 @@ function buildEvents(matches: Match[]): MatchEvent[] {
       type: "goal",
     },
     {
+      id: "e-bra-card-1",
+      matchId: "m-swe-bra",
+      minute: 58,
+      teamId: "bra",
+      playerName: "Casemiro",
+      type: "yellow_card",
+    },
+    {
+      id: "e-swe-card-1",
+      matchId: "m-swe-bra",
+      minute: 61,
+      teamId: "swe",
+      playerName: "Victor Lindelof",
+      type: "yellow_card",
+    },
+    {
       id: "e-fra-1",
       matchId: "m-fra-ger",
       minute: 22,
@@ -207,6 +248,14 @@ function buildEvents(matches: Match[]): MatchEvent[] {
       playerName: "Ousmane Dembele",
       assistName: "Theo Hernandez",
       type: "goal",
+    },
+    {
+      id: "e-ger-card-1",
+      matchId: "m-fra-ger",
+      minute: 72,
+      teamId: "ger",
+      playerName: "Antonio Rudiger",
+      type: "red_card",
     },
   ];
 
@@ -328,10 +377,15 @@ const bonusPickOptions: BonusPickOption[] = [
   { id: "bonus-champion-col", type: "champion", label: "Colombia", teamId: "col" },
   { id: "bonus-finalist-swe", type: "finalist", label: "Sweden", teamId: "swe" },
   { id: "bonus-finalist-eng", type: "finalist", label: "England", teamId: "eng" },
-  { id: "bonus-scorer-mbappe", type: "top_scorer", label: "Kylian Mbappe", playerName: "Kylian Mbappe" },
-  { id: "bonus-scorer-isak", type: "top_scorer", label: "Alexander Isak", playerName: "Alexander Isak" },
-  { id: "bonus-assists-vini", type: "most_assists", label: "Vinicius Jr.", playerName: "Vinicius Jr." },
-  { id: "bonus-glove-fra", type: "golden_glove", label: "France keeper", teamId: "fra" },
+  { id: "bonus-scorer-mbappe", type: "top_scorer", label: "Kylian Mbappe", playerId: "player-mbappe", playerName: "Kylian Mbappe" },
+  { id: "bonus-scorer-isak", type: "top_scorer", label: "Alexander Isak", playerId: "player-isak", playerName: "Alexander Isak" },
+  { id: "bonus-assists-vini", type: "most_assists", label: "Vinicius Jr.", playerId: "player-vini", playerName: "Vinicius Jr." },
+  ...teams.map((team) => ({
+    id: `bonus-cards-${team.id}`,
+    type: "most_cards_country" as const,
+    label: team.name,
+    teamId: team.id,
+  })),
 ];
 
 function buildBonusPicks(now: Date): BonusPick[] {
@@ -377,14 +431,107 @@ function buildBonusPicks(now: Date): BonusPick[] {
 
 const bonusScoreSnapshots: BonusScoreSnapshot[] = [];
 
+function buildMatchPlayerStats(now: Date): MatchPlayerStat[] {
+  return [
+    {
+      assists: 1,
+      cleanSheets: 0,
+      goals: 1,
+      matchId: "m-swe-bra",
+      minutes: 63,
+      playerId: "player-isak",
+      playerName: "Alexander Isak",
+      position: "Attacker",
+      redCards: 0,
+      saves: 0,
+      teamId: "swe",
+      updatedAt: formatISO(addMinutes(now, -1)),
+      yellowCards: 0,
+    },
+    {
+      assists: 1,
+      cleanSheets: 0,
+      goals: 1,
+      matchId: "m-swe-bra",
+      minutes: 63,
+      playerId: "player-vini",
+      playerName: "Vinicius Jr.",
+      position: "Attacker",
+      redCards: 0,
+      saves: 0,
+      teamId: "bra",
+      updatedAt: formatISO(addMinutes(now, -1)),
+      yellowCards: 1,
+    },
+    {
+      assists: 0,
+      cleanSheets: 0,
+      goals: 0,
+      matchId: "m-fra-ger",
+      minutes: 90,
+      playerId: "player-rudiger",
+      playerName: "Antonio Rudiger",
+      position: "Defender",
+      redCards: 1,
+      saves: 0,
+      teamId: "ger",
+      updatedAt: formatISO(addHours(now, -3)),
+      yellowCards: 0,
+    },
+  ];
+}
+
+function buildPlayerStatSnapshots(stats: MatchPlayerStat[]): TournamentPlayerStatSnapshot[] {
+  const grouped = new Map<string, TournamentPlayerStatSnapshot>();
+
+  stats.forEach((stat) => {
+    const key = `${stat.teamId}:${stat.playerName}`;
+    const current = grouped.get(key);
+
+    if (!current) {
+      grouped.set(key, {
+        assists: stat.assists,
+        cleanSheets: stat.cleanSheets,
+        goals: stat.goals,
+        playerId: stat.playerId,
+        playerName: stat.playerName,
+        redCards: stat.redCards,
+        saves: stat.saves,
+        teamId: stat.teamId,
+        updatedAt: stat.updatedAt,
+        yellowCards: stat.yellowCards,
+      });
+      return;
+    }
+
+    current.assists += stat.assists;
+    current.cleanSheets += stat.cleanSheets;
+    current.goals += stat.goals;
+    current.redCards += stat.redCards;
+    current.saves += stat.saves;
+    current.yellowCards += stat.yellowCards;
+    current.updatedAt = stat.updatedAt;
+  });
+
+  return [...grouped.values()];
+}
+
 export function buildMockBootstrapData(): BootstrapData {
   const now = new Date();
   const matches = buildMatches(now);
+  const events = buildEvents(matches);
+  const matchPlayerStats = buildMatchPlayerStats(now);
+  const playerStatSnapshots = buildPlayerStatSnapshots(matchPlayerStats);
 
   return {
+    authMode: "demo",
     generatedAt: formatISO(now),
     currentUserId: "user-miguel",
-    pool,
+    currentMemberRole: "admin",
+    pool: {
+      ...pool,
+      bonusLockAt: formatISO(addHours(now, 24)),
+    },
     profiles,
     members: profiles.map((profile, index) => ({
       userId: profile.id,
@@ -392,14 +539,35 @@ export function buildMockBootstrapData(): BootstrapData {
       joinedAt: formatISO(addHours(now, -72 + index)),
     })),
     teams,
+    players,
+    squadMembers,
     matches,
-    events: buildEvents(matches),
+    events,
+    matchPlayerStats,
     predictions: buildPredictions(now),
     leaderboard,
     standings,
+    adminOverrides: [
+      {
+        createdAt: formatISO(addHours(now, -5)),
+        createdBy: "user-miguel",
+        id: "override-1",
+        matchId: "m-fra-ger",
+        overrideType: "match",
+        payload: { home_score: 2, away_score: 1, status: "finished" },
+        reason: "Verified final score.",
+      },
+    ],
     bonusPickOptions,
     bonusPicks: buildBonusPicks(now),
     bonusScoreSnapshots,
+    playerStatSnapshots,
+    categoryLeaderboards: aggregateCategoryLeaderboards({
+      events,
+      matches,
+      playerStats: matchPlayerStats,
+      teams,
+    }),
     syncRuns: [
       {
         id: "sync-1",

@@ -6,7 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
-import { predictionResultLabel, scoreResult } from "@/lib/predictions";
+import { scoreResult } from "@/lib/predictions";
+import { formatMatchTiming } from "@/lib/time";
 import type { BootstrapData, Match, Prediction } from "@/lib/types";
 
 export function InlinePredictionPicker({
@@ -35,11 +36,6 @@ export function InlinePredictionPicker({
     [awayScore, homeScore],
   );
   const dirty = `${homeScore}-${awayScore}` !== lastSavedScore;
-  const resultLabel = predictionResultLabel({
-    awayShortName: away.shortName,
-    homeShortName: home.shortName,
-    result,
-  });
 
   async function savePrediction() {
     if (locked) {
@@ -48,6 +44,7 @@ export function InlinePredictionPicker({
 
     setSaving(true);
     setMessage("Saving");
+    const previousData = queryClient.getQueryData<BootstrapData>(bootstrapQueryKey);
 
     const optimisticPrediction: Prediction = {
       id: existing?.id ?? `local-${match.id}-${data.currentUserId}`,
@@ -79,28 +76,37 @@ export function InlinePredictionPicker({
       };
     });
 
-    const response = await fetch("/api/predictions", {
-      body: JSON.stringify({
-        awayScore,
-        homeScore,
-        matchId: match.id,
-        poolId: data.pool.id,
-        predictedResult: result,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const body = (await response.json()) as { error?: string };
+    try {
+      const response = await fetch("/api/predictions", {
+        body: JSON.stringify({
+          awayScore,
+          homeScore,
+          matchId: match.id,
+          poolId: data.pool.id,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const body = (await response.json()) as { error?: string };
 
-    setSaving(false);
-    setLastSavedScore(`${homeScore}-${awayScore}`);
-    if (response.ok) {
+      if (!response.ok) {
+        if (previousData) {
+          queryClient.setQueryData(bootstrapQueryKey, previousData);
+        }
+        setMessage(body.error ?? "Save failed");
+        return;
+      }
+
+      setLastSavedScore(`${homeScore}-${awayScore}`);
       setMessage("Saved");
       void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
-    } else if (body.error === "Not authenticated") {
-      setMessage("Saved locally");
-    } else {
-      setMessage(body.error ?? "Save failed");
+    } catch {
+      if (previousData) {
+        queryClient.setQueryData(bootstrapQueryKey, previousData);
+      }
+      setMessage("Save failed");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -117,7 +123,10 @@ export function InlinePredictionPicker({
             {compact ? `${home.shortName} vs ${away.shortName}` : "Your prediction"}
           </h2>
           <p className="mt-1 text-xs font-bold text-stone-500">
-            {locked ? "Locked for this match" : "Editable until lock"}
+            {formatMatchTiming({
+              kickoffAt: match.kickoffAt,
+              lockAt: match.predictionLockAt,
+            })}
           </p>
         </div>
         <span
@@ -132,28 +141,32 @@ export function InlinePredictionPicker({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_88px] gap-3">
+      <div className="mt-4 grid grid-cols-[1fr_72px] gap-3">
         <div className="space-y-2">
           <ScoreLine
             disabled={locked}
             label={home.shortName}
             onChange={setHomeScore}
+            side="home"
             value={homeScore}
           />
           <ScoreLine
             disabled={locked}
             label={away.shortName}
             onChange={setAwayScore}
+            side="away"
             value={awayScore}
           />
         </div>
         <div className="grid place-items-center rounded-md bg-stone-100 px-2 text-center">
           <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
-            1X2
+            Pick
           </p>
-          <p className="text-sm font-black">{resultLabel}</p>
           <p className="font-mono text-lg font-black">
             {homeScore}-{awayScore}
+          </p>
+          <p className="text-[10px] font-black uppercase text-stone-400">
+            {locked ? "Locked" : "Score"}
           </p>
         </div>
       </div>
@@ -174,11 +187,13 @@ function ScoreLine({
   disabled,
   label,
   onChange,
+  side,
   value,
 }: {
   disabled: boolean;
   label: string;
   onChange: (value: number) => void;
+  side: "away" | "home";
   value: number;
 }) {
   return (
@@ -186,6 +201,7 @@ function ScoreLine({
       <span className="truncate text-sm font-black">{label}</span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
         <button
+          aria-label={`Decrease ${label} ${side} score`}
           className="grid h-10 place-items-center disabled:text-stone-300"
           disabled={disabled}
           onClick={() => onChange(Math.max(0, value - 1))}
@@ -197,6 +213,7 @@ function ScoreLine({
           {value}
         </span>
         <button
+          aria-label={`Increase ${label} ${side} score`}
           className="grid h-10 place-items-center disabled:text-stone-300"
           disabled={disabled}
           onClick={() => onChange(Math.min(30, value + 1))}

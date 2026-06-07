@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -25,6 +26,7 @@ const primaryNav = [
 const menuNav = [
   { href: "/pool", icon: Users, label: "Pool" },
   { href: "/groups", icon: Table2, label: "Groups" },
+  { href: "/stats", icon: BarChart3, label: "Stats" },
   { href: "/settings", icon: Settings, label: "Settings" },
   { href: "/admin", icon: Shield, label: "Admin" },
 ];
@@ -50,7 +52,7 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh bg-stone-100 text-stone-950">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#022c22] text-white">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#022c22] pt-[var(--safe-top)] text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link className="min-w-0" href="/">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
@@ -63,7 +65,10 @@ export function AppShell({
           </Link>
 
           <details className="relative">
-            <summary className="flex size-11 cursor-pointer list-none items-center justify-center rounded-md bg-white/10 text-white ring-1 ring-white/15">
+            <summary
+              aria-label="Open secondary navigation"
+              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-md bg-white/10 text-white ring-1 ring-white/15"
+            >
               <ChevronDown size={20} />
             </summary>
             <div className="absolute right-0 mt-2 w-48 rounded-lg border border-black/10 bg-white p-2 text-stone-950 shadow-xl">
@@ -86,7 +91,7 @@ export function AppShell({
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-0 md:grid-cols-[220px_1fr]">
-        <aside className="sticky top-[69px] hidden h-[calc(100dvh-69px)] border-r border-black/10 bg-white p-3 md:block">
+        <aside className="sticky top-[calc(69px+var(--safe-top))] hidden h-[calc(100dvh-69px-var(--safe-top))] border-r border-black/10 bg-white p-3 md:block">
           <nav className="space-y-1">
             {[...primaryNav, ...menuNav].map((item) => {
               const Icon = item.icon;

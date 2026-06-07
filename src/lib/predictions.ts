@@ -12,6 +12,10 @@ export function scoreResult(homeScore: number, awayScore: number): PredictionRes
   return "draw";
 }
 
+export function isValidPredictionScore(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 30;
+}
+
 export function predictionResultLabel({
   awayShortName,
   homeShortName,

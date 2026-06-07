@@ -1,13 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Flag } from "@/components/ui/flag";
 import { StatusPill } from "@/components/ui/status-pill";
-import { formatKickoff, formatLockTime, formatMinute, predictionLabel, scorersSummary, scoreText } from "@/lib/format";
+import { formatMinute, predictionLabel, scorersSummary, scoreText } from "@/lib/format";
 import {
   getMatchEvents,
   getTeam,
   getUserPrediction,
   isMatchLocked,
 } from "@/lib/data/selectors";
+import { formatMatchTiming } from "@/lib/time";
 import type { BootstrapData, Match } from "@/lib/types";
 
 function TeamLine({
@@ -31,20 +35,28 @@ function TeamLine({
 export function MatchRow({
   data,
   match,
+  predictionLabelPrefix = "Your pick",
+  predictionUserId,
 }: {
   data: BootstrapData;
   match: Match;
+  predictionLabelPrefix?: string;
+  predictionUserId?: string;
 }) {
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
   const events = getMatchEvents(data, match.id);
-  const prediction = getUserPrediction(data, match.id);
+  const prediction = getUserPrediction(data, match.id, predictionUserId);
   const locked = isMatchLocked(match);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentPath = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
+  const matchHref = `/matches/${match.id}?from=${encodeURIComponent(currentPath)}`;
 
   return (
     <Link
       className="block rounded-lg border border-black/10 bg-white p-3 shadow-sm transition hover:border-emerald-900/30"
-      href={`/matches/${match.id}`}
+      href={matchHref}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="min-w-0">
@@ -53,8 +65,11 @@ export function MatchRow({
           </p>
           <p className="truncate text-xs font-bold text-stone-500">
             {match.status === "scheduled"
-              ? `${formatKickoff(match.kickoffAt)} · ${formatLockTime(match.predictionLockAt)}`
-              : scorersSummary(events, data.teams)}
+              ? formatMatchTiming({
+                  kickoffAt: match.kickoffAt,
+                  lockAt: match.predictionLockAt,
+                })
+              : `${formatMatchTiming({ kickoffAt: match.kickoffAt })} · ${scorersSummary(events, data.teams)}`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -78,7 +93,7 @@ export function MatchRow({
 
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-black/10 pt-3 text-xs">
         <span className="font-bold text-stone-600">
-          Your pick:{" "}
+          {predictionLabelPrefix}:{" "}
           <strong className={prediction ? "text-stone-950" : "text-red-700"}>
             {predictionLabel(prediction)}
           </strong>

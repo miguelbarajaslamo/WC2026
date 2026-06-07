@@ -2,7 +2,7 @@
 
 ## Supabase
 
-Run `supabase/schema.sql` in the SQL editor for the initial schema. The schema includes tables for pools, profiles, teams, matches, predictions, standings, score snapshots, invites, sync runs, and admin overrides.
+Run `supabase/schema.sql` in the SQL editor for the initial schema. The schema includes tables for pools, profiles, teams, matches, match events, match player stats, predictions, standings, score snapshots, bonus picks, invites, sync runs, and admin overrides.
 
 ## Scheduled Sync
 
@@ -20,7 +20,15 @@ VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:you@example.com
 ```
 
-The function polls API-Football live fixtures at a 15-second cadence inside a one-minute invocation and writes a row to `sync_runs`.
+The sync function supports modes through the query string:
+
+- `?mode=live`: polls API-Football live fixtures at a 15-second cadence inside a one-minute invocation, syncs events, finished-fixture player stats, and match score snapshots.
+- `?mode=reference`: syncs `/fixtures?league=1&season=2026` and `/standings?league=1&season=2026`, including TBD knockout fixtures.
+- `?mode=squads`: syncs `/players/squads?team=<team_id>` for known teams, populates players/squad members, and creates top scorer/assist bonus options.
+- `?mode=post-match`: refreshes events and `/fixtures/players?fixture=<id>` for finished matches.
+- `?mode=stats`: recalculates tournament player stat snapshots.
+
+All modes write a row to `sync_runs`.
 
 Deploy both scheduled functions:
 
@@ -51,10 +59,18 @@ Store these Vercel env vars for the web app:
 
 ```bash
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+```
+
+Store these Supabase Edge Function secrets for notification delivery:
+
+```bash
+VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:you@example.com
 ```
 
+The client public-key route returns `NEXT_PUBLIC_VAPID_PUBLIC_KEY` first and falls back to `VAPID_PUBLIC_KEY` for local/dev setups. Do not put the VAPID private key in a public Vercel variable.
+
 ## App Data
 
-The current app uses `/api/bootstrap` with mock data. Replace that endpoint with Supabase reads once auth and pool membership are fully connected. Keep the one-payload bootstrap shape so route switching stays instant and React Query can persist the data locally.
+`/api/bootstrap` uses authenticated Supabase reads in production and returns one normalized payload for pool config, profile, members, teams, matches, predictions, events, standings, scoring snapshots, bonus picks, category leaderboards, and sync status. Local development keeps a demo fallback when no Supabase session exists so UI tests can run without sending auth email.

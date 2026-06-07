@@ -1,4 +1,4 @@
-# Family Cup 2026 Implementation Plan
+# WORLD CUP PICKS Implementation Plan
 
 ## Summary
 
@@ -9,7 +9,7 @@ Data comes from Supabase for the client. API-Football is called only from server
 ## Core Product
 
 - Bottom navigation: Today, Fixtures, Leaderboard, Picks.
-- Secondary areas: Pool/Rules, Profile/Settings, Admin.
+- Secondary areas: Pool/Rules, Groups, Stats/Categories, Profile/Settings, Admin.
 - Predictions are editable until `kickoff_at - 15 minutes`.
 - Picks become visible to everyone at lock.
 - Users are encouraged to fill all group-stage picks early; those picks remain editable per match until lock.
@@ -47,11 +47,13 @@ Data comes from Supabase for the client. API-Football is called only from server
    - Implement pot scoring in parallel.
    - Store per-match score snapshots.
    - Build leaderboard totals from snapshots.
+   - Add tournament specials for champion, finalists, top scorer, most assists, and most-carded country.
 
 4. **Live Data**
    - Add API-Football client on the server.
    - Store provider responses during development for mocks.
-   - Sync fixtures, match status, scores, and events.
+   - Sync fixtures, match status, scores, events, and finished-fixture player stats.
+   - Build category leaderboards for top scorers, top assists, and country card points.
    - Add admin override and recalculation.
 
 5. **PWA Polish**

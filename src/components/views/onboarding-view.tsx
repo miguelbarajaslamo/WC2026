@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Bell, CheckCircle2, ClipboardList, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
 import { InlinePredictionPicker } from "@/components/app/inline-prediction-picker";
 import { NotificationOptIn } from "@/components/app/notification-opt-in";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
@@ -10,8 +11,43 @@ import { useBootstrap } from "@/components/app/use-bootstrap";
 import { getVisibleMatches, isMatchLocked } from "@/lib/data/selectors";
 import { getLocalTimeZone } from "@/lib/time";
 
-export function OnboardingView() {
+export function OnboardingView({ invite }: { invite?: string }) {
   const { data, error, isLoading } = useBootstrap();
+  const [inviteMessage, setInviteMessage] = useState("");
+
+  useEffect(() => {
+    if (!invite) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function redeemInvite() {
+      setInviteMessage("Joining pool");
+      const response = await fetch("/api/invites/redeem", {
+        body: JSON.stringify({ code: invite }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const body = (await response.json()) as { error?: string; alreadyMember?: boolean };
+
+      if (!cancelled) {
+        setInviteMessage(
+          response.ok
+            ? body.alreadyMember
+              ? "Invite already joined"
+              : "Invite joined"
+            : body.error ?? "Could not redeem invite",
+        );
+      }
+    }
+
+    void redeemInvite();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [invite]);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading onboarding" />;
@@ -37,6 +73,12 @@ export function OnboardingView() {
           the first batch of match picks.
         </p>
       </section>
+
+      {inviteMessage ? (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-black text-emerald-950">
+          {inviteMessage}
+        </section>
+      ) : null}
 
       <section className="grid gap-3">
         <RuleRow
