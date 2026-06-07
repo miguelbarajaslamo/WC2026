@@ -27,6 +27,10 @@ export async function GET() {
       await buildSupabaseBootstrapData({ supabase, userId: user.id }),
     );
   } catch (error) {
+    if (!(error instanceof BootstrapAccessError)) {
+      console.error("[bootstrap] failed to build data", error);
+    }
+
     return NextResponse.json(
       {
         error:

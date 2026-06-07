@@ -403,6 +403,24 @@ as $$
   select pg_advisory_unlock(lock_key);
 $$;
 
+-- Membership check used by the pool_members RLS policy. It must be
+-- security definer so the lookup bypasses RLS on pool_members; otherwise a
+-- policy on pool_members that queries pool_members recurses infinitely
+-- (Postgres error 42P17).
+create or replace function public.is_pool_member(p_pool_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.pool_members
+    where pool_members.pool_id = p_pool_id
+      and pool_members.user_id = auth.uid()
+  );
+$$;
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
@@ -460,13 +478,7 @@ drop policy if exists "members can read pool memberships" on public.pool_members
 create policy "members can read pool memberships"
   on public.pool_members for select
   to authenticated
-  using (
-    exists (
-      select 1 from public.pool_members own_membership
-      where own_membership.pool_id = pool_members.pool_id
-        and own_membership.user_id = auth.uid()
-    )
-  );
+  using (public.is_pool_member(pool_id));
 
 drop policy if exists "authenticated users can read teams" on public.teams;
 create policy "authenticated users can read teams"
