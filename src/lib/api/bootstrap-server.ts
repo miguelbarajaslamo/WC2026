@@ -223,6 +223,12 @@ type AdminOverrideRow = {
 
 export class BootstrapAccessError extends Error {
   status = 403;
+  code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.code = code;
+  }
 }
 
 function numberFrom(value: number | string | null | undefined) {
@@ -549,7 +555,7 @@ export async function buildSupabaseBootstrapData({
   }
 
   if (!currentMembership) {
-    throw new BootstrapAccessError("You have not joined a pool yet");
+    throw new BootstrapAccessError("You have not joined a pool yet", "NO_POOL");
   }
 
   const pool = mapPool(

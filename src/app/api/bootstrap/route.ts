@@ -37,6 +37,8 @@ export async function GET() {
           error instanceof Error
             ? error.message
             : "Could not load WORLD CUP PICKS data",
+        code:
+          error instanceof BootstrapAccessError ? error.code : undefined,
       },
       { status: error instanceof BootstrapAccessError ? error.status : 500 },
     );

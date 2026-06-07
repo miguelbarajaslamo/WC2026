@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { PoolGate } from "@/components/app/pool-gate";
 import { cn } from "@/lib/cn";
 
 const primaryNav = [
@@ -51,6 +52,7 @@ export function AppShell({
   const pathname = usePathname();
 
   return (
+    <PoolGate>
     <div className="min-h-dvh bg-stone-100 text-stone-950">
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#022c22] pt-[var(--safe-top)] text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
@@ -144,5 +146,6 @@ export function AppShell({
         </div>
       </nav>
     </div>
+    </PoolGate>
   );
 }
