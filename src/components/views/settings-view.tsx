@@ -3,8 +3,10 @@
 import { Bell, LogOut, Smartphone } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { NotificationOptIn } from "@/components/app/notification-opt-in";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { getProfile } from "@/lib/data/selectors";
+import { getLocalTimeZone } from "@/lib/time";
 
 export function SettingsView() {
   const { data, error, isLoading } = useBootstrap();
@@ -37,6 +39,13 @@ export function SettingsView() {
         title="Notifications"
         value="Planned"
       />
+      <SettingRow
+        body={`Match and lock times use your phone/browser timezone: ${getLocalTimeZone()}.`}
+        icon={<Smartphone size={20} />}
+        title="Local time"
+        value="Auto"
+      />
+      <NotificationOptIn />
       <SettingRow
         body="Add WORLD CUP PICKS to the home screen for standalone PWA mode."
         icon={<Smartphone size={20} />}

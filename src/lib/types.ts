@@ -12,6 +12,13 @@ export type ScoringMode = "traditional" | "pot";
 
 export type EventType = "goal" | "yellow_card" | "red_card" | "substitution";
 
+export type BonusPickType =
+  | "champion"
+  | "finalist"
+  | "top_scorer"
+  | "most_assists"
+  | "golden_glove";
+
 export type Team = {
   id: string;
   name: string;
@@ -120,6 +127,43 @@ export type SyncRun = {
   message: string;
 };
 
+export type BonusPickOption = {
+  id: string;
+  type: BonusPickType;
+  label: string;
+  teamId?: string;
+  playerName?: string;
+};
+
+export type BonusPick = {
+  id: string;
+  poolId: string;
+  userId: string;
+  type: BonusPickType;
+  slot: number;
+  optionId: string;
+  lockedAt?: string;
+  updatedAt: string;
+};
+
+export type BonusScoreSnapshot = {
+  id: string;
+  poolId: string;
+  userId: string;
+  type: BonusPickType;
+  points: number;
+  reason: string;
+};
+
+export type PushSubscriptionRecord = {
+  id: string;
+  userId: string;
+  endpoint: string;
+  userAgent?: string;
+  createdAt: string;
+  lastSeenAt: string;
+};
+
 export type BootstrapData = {
   generatedAt: string;
   currentUserId: string;
@@ -133,4 +177,7 @@ export type BootstrapData = {
   leaderboard: LeaderboardRow[];
   standings: Record<string, StandingRow[]>;
   syncRuns: SyncRun[];
+  bonusPickOptions: BonusPickOption[];
+  bonusPicks: BonusPick[];
+  bonusScoreSnapshots: BonusScoreSnapshot[];
 };

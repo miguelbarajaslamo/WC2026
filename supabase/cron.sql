@@ -16,3 +16,19 @@ select cron.schedule(
     );
   $$
 );
+
+select cron.schedule(
+  'world-cup-deadline-notifications',
+  '*/5 * * * *',
+  $$
+  select
+    net.http_post(
+      url := 'https://<PROJECT_REF>.functions.supabase.co/send-deadline-notifications',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer <CRON_SECRET>',
+        'Content-Type', 'application/json'
+      ),
+      body := jsonb_build_object('source', 'pg_cron')
+    );
+  $$
+);

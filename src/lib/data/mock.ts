@@ -1,6 +1,9 @@
 import { addHours, addMinutes, formatISO, startOfDay } from "date-fns";
 import type {
   BootstrapData,
+  BonusPick,
+  BonusPickOption,
+  BonusScoreSnapshot,
   LeaderboardRow,
   Match,
   MatchEvent,
@@ -319,6 +322,61 @@ const standings: Record<string, StandingRow[]> = {
   ],
 };
 
+const bonusPickOptions: BonusPickOption[] = [
+  { id: "bonus-champion-bra", type: "champion", label: "Brazil", teamId: "bra" },
+  { id: "bonus-champion-fra", type: "champion", label: "France", teamId: "fra" },
+  { id: "bonus-champion-col", type: "champion", label: "Colombia", teamId: "col" },
+  { id: "bonus-finalist-swe", type: "finalist", label: "Sweden", teamId: "swe" },
+  { id: "bonus-finalist-eng", type: "finalist", label: "England", teamId: "eng" },
+  { id: "bonus-scorer-mbappe", type: "top_scorer", label: "Kylian Mbappe", playerName: "Kylian Mbappe" },
+  { id: "bonus-scorer-isak", type: "top_scorer", label: "Alexander Isak", playerName: "Alexander Isak" },
+  { id: "bonus-assists-vini", type: "most_assists", label: "Vinicius Jr.", playerName: "Vinicius Jr." },
+  { id: "bonus-glove-fra", type: "golden_glove", label: "France keeper", teamId: "fra" },
+];
+
+function buildBonusPicks(now: Date): BonusPick[] {
+  return [
+    {
+      id: "bonus-pick-1",
+      optionId: "bonus-champion-col",
+      poolId: pool.id,
+      slot: 1,
+      type: "champion",
+      updatedAt: formatISO(addHours(now, -18)),
+      userId: "user-miguel",
+    },
+    {
+      id: "bonus-pick-2",
+      optionId: "bonus-finalist-swe",
+      poolId: pool.id,
+      slot: 1,
+      type: "finalist",
+      updatedAt: formatISO(addHours(now, -18)),
+      userId: "user-miguel",
+    },
+    {
+      id: "bonus-pick-2b",
+      optionId: "bonus-finalist-eng",
+      poolId: pool.id,
+      slot: 2,
+      type: "finalist",
+      updatedAt: formatISO(addHours(now, -18)),
+      userId: "user-miguel",
+    },
+    {
+      id: "bonus-pick-3",
+      optionId: "bonus-scorer-isak",
+      poolId: pool.id,
+      slot: 1,
+      type: "top_scorer",
+      updatedAt: formatISO(addHours(now, -18)),
+      userId: "user-miguel",
+    },
+  ];
+}
+
+const bonusScoreSnapshots: BonusScoreSnapshot[] = [];
+
 export function buildMockBootstrapData(): BootstrapData {
   const now = new Date();
   const matches = buildMatches(now);
@@ -339,6 +397,9 @@ export function buildMockBootstrapData(): BootstrapData {
     predictions: buildPredictions(now),
     leaderboard,
     standings,
+    bonusPickOptions,
+    bonusPicks: buildBonusPicks(now),
+    bonusScoreSnapshots,
     syncRuns: [
       {
         id: "sync-1",

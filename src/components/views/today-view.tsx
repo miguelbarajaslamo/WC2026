@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Countdown } from "@/components/app/countdown";
 import { Section } from "@/components/ui/section";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { MatchRow } from "@/components/app/match-row";
@@ -9,6 +10,7 @@ import {
   getMissingUnlockedMatches,
   getVisibleMatches,
 } from "@/lib/data/selectors";
+import { getLocalTimeZone, getNextLockMatch } from "@/lib/time";
 
 export function TodayView() {
   const { data, error, isLoading, isFetching } = useBootstrap();
@@ -28,6 +30,7 @@ export function TodayView() {
   const upcoming = matches.filter((match) => match.status === "scheduled").slice(0, 4);
   const finished = matches.filter((match) => match.status === "finished").slice(0, 3);
   const missing = getMissingUnlockedMatches(data).slice(0, 3);
+  const nextLock = getNextLockMatch(data);
 
   return (
     <div className="space-y-5">
@@ -42,15 +45,22 @@ export function TodayView() {
               {isFetching ? "Refreshing in background" : "Data cached and ready"}
             </p>
           </div>
-          <div className="rounded-md bg-white px-3 py-2 text-right text-stone-950">
-            <p className="font-mono text-xl font-black">
-              {data.leaderboard[1]?.rank ?? "-"}
-            </p>
-            <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
-              Your rank
-            </p>
-          </div>
+          {nextLock ? (
+            <Countdown label="Next lock" target={nextLock.predictionLockAt} />
+          ) : (
+            <div className="rounded-md bg-white px-3 py-2 text-right text-stone-950">
+              <p className="font-mono text-xl font-black">
+                {data.leaderboard[1]?.rank ?? "-"}
+              </p>
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
+                Your rank
+              </p>
+            </div>
+          )}
         </div>
+        <p className="mt-3 text-xs font-bold text-white/55">
+          Times shown in your device timezone: {getLocalTimeZone()}
+        </p>
       </section>
 
       {missing.length > 0 ? (

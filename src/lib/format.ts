@@ -5,9 +5,10 @@ import {
   parseISO,
 } from "date-fns";
 import type { Match, MatchEvent, Prediction, Team } from "@/lib/types";
+import { formatLocalTime } from "@/lib/time";
 
 export function formatKickoff(value: string) {
-  return format(parseISO(value), "HH:mm");
+  return formatLocalTime(value);
 }
 
 export function formatMatchDate(value: string) {

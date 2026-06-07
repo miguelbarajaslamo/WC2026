@@ -1,12 +1,16 @@
 "use client";
 
 import { Mail } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
 export function LoginView() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/";
+  const invite = searchParams.get("invite");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -14,7 +18,7 @@ export function LoginView() {
     setMessage("");
 
     const response = await fetch("/api/auth/magic-link", {
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, invite, next }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });

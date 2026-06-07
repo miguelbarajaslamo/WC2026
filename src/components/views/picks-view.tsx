@@ -1,8 +1,10 @@
 "use client";
 
-import { MatchRow } from "@/components/app/match-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
+import { InlinePredictionPicker } from "@/components/app/inline-prediction-picker";
+import { MatchRow } from "@/components/app/match-row";
 import { useBootstrap } from "@/components/app/use-bootstrap";
+import { BonusPicksPanel } from "@/components/views/bonus-picks-panel";
 import {
   getMissingUnlockedMatches,
   getUserPrediction,
@@ -44,7 +46,14 @@ export function PicksView() {
         {missing.length === 0 ? (
           <EmptyState body="You are covered for every currently open match." title="No missing picks" />
         ) : (
-          missing.map((match) => <MatchRow data={data} key={match.id} match={match} />)
+          missing.map((match) => (
+            <InlinePredictionPicker
+              compact
+              data={data}
+              key={match.id}
+              match={match}
+            />
+          ))
         )}
       </section>
 
@@ -53,9 +62,16 @@ export function PicksView() {
           Saved and editable
         </h2>
         {openWithPick.map((match) => (
-          <MatchRow data={data} key={match.id} match={match} />
+          <InlinePredictionPicker
+            compact
+            data={data}
+            key={match.id}
+            match={match}
+          />
         ))}
       </section>
+
+      <BonusPicksPanel data={data} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-black uppercase tracking-wide text-stone-500">

@@ -16,6 +16,7 @@ import {
   getTeam,
   isMatchLocked,
 } from "@/lib/data/selectors";
+import { predictionResultLabel } from "@/lib/predictions";
 
 export function MatchDetailView({ matchId }: { matchId: string }) {
   const { data, error, isLoading } = useBootstrap();
@@ -39,6 +40,13 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
   const events = getMatchEvents(data, match.id);
   const predictions = getMatchPredictions(data, match.id);
   const locked = isMatchLocked(match);
+  const distribution = predictions.reduce(
+    (counts, prediction) => {
+      counts[prediction.predictedResult] += 1;
+      return counts;
+    },
+    { away: 0, draw: 0, home: 0 },
+  );
 
   return (
     <div className="space-y-4">
@@ -117,15 +125,28 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
           </p>
         ) : (
           <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <DistributionPill label={home.shortName} value={distribution.home} />
+              <DistributionPill label="Draw" value={distribution.draw} />
+              <DistributionPill label={away.shortName} value={distribution.away} />
+            </div>
             {predictions.map((prediction) => {
               const profile = getProfile(data, prediction.userId);
+              const resultLabel = predictionResultLabel({
+                awayShortName: away.shortName,
+                homeShortName: home.shortName,
+                result: prediction.predictedResult,
+              });
               return (
                 <div
-                  className="grid grid-cols-[40px_1fr_auto] items-center gap-3"
+                  className="grid grid-cols-[40px_1fr_auto_auto] items-center gap-3"
                   key={prediction.id}
                 >
                   <Avatar color={profile.avatarColor} name={profile.displayName} />
                   <span className="font-bold">{profile.displayName}</span>
+                  <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-black uppercase text-emerald-950">
+                    {resultLabel}
+                  </span>
                   <span className="font-mono text-lg font-black">
                     {prediction.homeScore}-{prediction.awayScore}
                   </span>
@@ -135,6 +156,17 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function DistributionPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-stone-100 px-2 py-2 text-center">
+      <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
+        {label}
+      </p>
+      <p className="font-mono text-lg font-black">{value}</p>
     </div>
   );
 }

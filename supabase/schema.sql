@@ -39,6 +39,18 @@ begin
 exception when duplicate_object then null;
 end $$;
 
+do $$
+begin
+  create type public.bonus_pick_type as enum (
+    'champion',
+    'finalist',
+    'top_scorer',
+    'most_assists',
+    'golden_glove'
+  );
+exception when duplicate_object then null;
+end $$;
+
 create table if not exists public.pools (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -167,6 +179,67 @@ create table if not exists public.score_snapshots (
   unique (pool_id, match_id, user_id, scoring_mode)
 );
 
+create table if not exists public.bonus_pick_options (
+  id text primary key,
+  type public.bonus_pick_type not null,
+  label text not null,
+  team_id text references public.teams(id) on delete set null,
+  player_name text,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.bonus_picks (
+  id uuid primary key default gen_random_uuid(),
+  pool_id uuid not null references public.pools(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  type public.bonus_pick_type not null,
+  slot integer not null default 1,
+  option_id text not null references public.bonus_pick_options(id) on delete restrict,
+  locked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (pool_id, user_id, type, slot)
+);
+
+create table if not exists public.bonus_score_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  pool_id uuid not null references public.pools(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  type public.bonus_pick_type not null,
+  points numeric(8, 2) not null default 0,
+  reason text not null,
+  created_at timestamptz not null default now(),
+  unique (pool_id, user_id, type)
+);
+
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  unique (user_id, endpoint)
+);
+
+create table if not exists public.notification_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  match_id text references public.matches(id) on delete cascade,
+  notification_type text not null,
+  title text not null,
+  body text not null,
+  url text not null default '/picks',
+  scheduled_for timestamptz not null,
+  sent_at timestamptz,
+  error text,
+  created_at timestamptz not null default now(),
+  unique (user_id, match_id, notification_type)
+);
+
 create table if not exists public.sync_runs (
   id uuid primary key default gen_random_uuid(),
   source text not null default 'api-football',
@@ -226,6 +299,11 @@ alter table public.predictions enable row level security;
 alter table public.match_events enable row level security;
 alter table public.standings enable row level security;
 alter table public.score_snapshots enable row level security;
+alter table public.bonus_pick_options enable row level security;
+alter table public.bonus_picks enable row level security;
+alter table public.bonus_score_snapshots enable row level security;
+alter table public.push_subscriptions enable row level security;
+alter table public.notification_jobs enable row level security;
 alter table public.sync_runs enable row level security;
 alter table public.admin_overrides enable row level security;
 
@@ -346,6 +424,63 @@ create policy "members can read score snapshots"
         and pool_members.user_id = auth.uid()
     )
   );
+
+drop policy if exists "members can read bonus options" on public.bonus_pick_options;
+create policy "members can read bonus options"
+  on public.bonus_pick_options for select
+  to authenticated
+  using (true);
+
+drop policy if exists "users can read own bonus picks" on public.bonus_picks;
+create policy "users can read own bonus picks"
+  on public.bonus_picks for select
+  to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "users can upsert own bonus picks" on public.bonus_picks;
+create policy "users can upsert own bonus picks"
+  on public.bonus_picks for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = bonus_picks.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "users can update own bonus picks" on public.bonus_picks;
+create policy "users can update own bonus picks"
+  on public.bonus_picks for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "members can read bonus score snapshots" on public.bonus_score_snapshots;
+create policy "members can read bonus score snapshots"
+  on public.bonus_score_snapshots for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.pool_members
+      where pool_members.pool_id = bonus_score_snapshots.pool_id
+        and pool_members.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "users can manage own push subscriptions" on public.push_subscriptions;
+create policy "users can manage own push subscriptions"
+  on public.push_subscriptions for all
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "users can read own notification jobs" on public.notification_jobs;
+create policy "users can read own notification jobs"
+  on public.notification_jobs for select
+  to authenticated
+  using (user_id = auth.uid());
 
 drop policy if exists "admins can read sync runs" on public.sync_runs;
 create policy "admins can read sync runs"
