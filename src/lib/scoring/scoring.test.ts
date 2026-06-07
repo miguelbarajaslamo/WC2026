@@ -27,28 +27,19 @@ describe("determineResult", () => {
 });
 
 describe("calculateTraditionalScore", () => {
-  it("awards exact score", () => {
+  it("awards correct result plus exact-score bonus for exact score", () => {
     expect(
       calculateTraditionalScore(
         { ...basePrediction, predictedResult: "home", homeScore: 2, awayScore: 1 },
         { homeScore: 2, awayScore: 1 },
       ),
-    ).toEqual({ points: 5, reason: "exact_score" });
+    ).toEqual({ points: 6, reason: "exact_score" });
   });
 
-  it("awards correct result and goal difference", () => {
+  it("awards correct winner or draw only", () => {
     expect(
       calculateTraditionalScore(
         { ...basePrediction, predictedResult: "home", homeScore: 3, awayScore: 1 },
-        { homeScore: 2, awayScore: 0 },
-      ),
-    ).toEqual({ points: 4, reason: "correct_result_goal_difference" });
-  });
-
-  it("awards correct result only", () => {
-    expect(
-      calculateTraditionalScore(
-        { ...basePrediction, predictedResult: "home", homeScore: 4, awayScore: 1 },
         { homeScore: 2, awayScore: 0 },
       ),
     ).toEqual({ points: 3, reason: "correct_result" });

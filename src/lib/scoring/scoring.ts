@@ -7,12 +7,7 @@ export type FinishedScore = {
 
 export type TraditionalScoreBreakdown = {
   points: number;
-  reason:
-    | "exact_score"
-    | "correct_result_goal_difference"
-    | "correct_result"
-    | "incorrect"
-    | "not_finished";
+  reason: "exact_score" | "correct_result" | "incorrect" | "not_finished";
 };
 
 export type PotScoreBreakdown = {
@@ -24,8 +19,7 @@ export type PotScoreBreakdown = {
 
 export const traditionalRules = {
   correctResult: 3,
-  correctResultGoalDifference: 4,
-  exactScore: 5,
+  exactScoreBonus: 3,
 };
 
 export const potRules = {
@@ -42,10 +36,6 @@ export function determineResult(score: FinishedScore): PredictionResult {
   }
 
   return "draw";
-}
-
-export function goalDifference(score: FinishedScore) {
-  return score.homeScore - score.awayScore;
 }
 
 export function matchFinishedScore(match: Match): FinishedScore | null {
@@ -71,27 +61,19 @@ export function calculateTraditionalScore(
     return { points: 0, reason: "not_finished" };
   }
 
-  const predictedScore = {
-    awayScore: prediction.awayScore,
-    homeScore: prediction.homeScore,
-  };
   const finalResult = determineResult(finalScore);
-
-  if (
-    prediction.homeScore === finalScore.homeScore &&
-    prediction.awayScore === finalScore.awayScore
-  ) {
-    return { points: traditionalRules.exactScore, reason: "exact_score" };
-  }
 
   if (prediction.predictedResult !== finalResult) {
     return { points: 0, reason: "incorrect" };
   }
 
-  if (goalDifference(predictedScore) === goalDifference(finalScore)) {
+  if (
+    prediction.homeScore === finalScore.homeScore &&
+    prediction.awayScore === finalScore.awayScore
+  ) {
     return {
-      points: traditionalRules.correctResultGoalDifference,
-      reason: "correct_result_goal_difference",
+      points: traditionalRules.correctResult + traditionalRules.exactScoreBonus,
+      reason: "exact_score",
     };
   }
 

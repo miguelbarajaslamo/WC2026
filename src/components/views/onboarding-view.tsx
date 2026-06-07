@@ -40,7 +40,7 @@ export function OnboardingView() {
 
       <section className="grid gap-3">
         <RuleRow
-          body="Exact score 5, correct result plus goal difference 4, correct result 3."
+          body="Correct winner or draw gives 3 points. Exact score adds 3 more."
           icon={<Trophy size={20} />}
           title="Traditional scoring"
         />
