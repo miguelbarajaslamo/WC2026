@@ -27,22 +27,22 @@ export function GroupsView() {
           <div className="bg-stone-950 px-4 py-3 text-white">
             <h2 className="font-black">{groupName}</h2>
           </div>
-          <div className="grid grid-cols-[1fr_18px_18px_18px_18px_26px_26px_16px] gap-1 border-b border-black/10 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-stone-500">
+          <div className="grid grid-cols-[1fr_16px_16px_16px_16px_22px_22px_22px_14px] gap-1 border-b border-black/10 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-stone-500">
             <span>Team</span>
             <span>P</span>
             <span>W</span>
             <span>D</span>
             <span>L</span>
-            <span>GD</span>
+            <span>GF</span>
+            <span>GA</span>
             <span>Pts</span>
             <span />
           </div>
           {rows.map((row) => {
             const team = getTeam(data, row.teamId);
-            const goalDifference = row.goalsFor - row.goalsAgainst;
             return (
               <Link
-                className="grid grid-cols-[1fr_18px_18px_18px_18px_26px_26px_16px] items-center gap-1 border-b border-black/10 px-3 py-3 last:border-0"
+                className="grid grid-cols-[1fr_16px_16px_16px_16px_22px_22px_22px_14px] items-center gap-1 border-b border-black/10 px-3 py-3 last:border-0"
                 href={`/teams/${team.id}`}
                 key={team.id}
               >
@@ -54,7 +54,8 @@ export function GroupsView() {
                 <span className="font-mono text-xs font-bold">{row.won}</span>
                 <span className="font-mono text-xs font-bold">{row.drawn}</span>
                 <span className="font-mono text-xs font-bold">{row.lost}</span>
-                <span className="font-mono text-xs font-bold">{goalDifference}</span>
+                <span className="font-mono text-xs font-bold">{row.goalsFor}</span>
+                <span className="font-mono text-xs font-bold">{row.goalsAgainst}</span>
                 <span className="font-mono text-xs font-black">{row.points}</span>
                 <span className="text-[10px] font-black uppercase text-stone-400">
                   {row.qualification === "qualified" ? "Q" : ""}
