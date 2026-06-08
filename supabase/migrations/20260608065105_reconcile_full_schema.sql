@@ -1,6 +1,18 @@
+-- Reconcile production schema with supabase/schema.sql.
+-- Prod was built from an early schema and is missing 12 tables and several
+-- columns. This applies the idempotent canonical schema (minus pg_cron/pg_net
+-- extensions and a redundant enum alter that don't run in a migration tx).
+--
+-- These 5 tables exist with incompatible bigint ids (the code/schema use text)
+-- and are empty (0 rows), so we drop and recreate them with correct types.
+-- pools/profiles/pool_members are uuid-based, compatible, and preserved.
+drop table if exists public.score_snapshots cascade;
+drop table if exists public.predictions cascade;
+drop table if exists public.match_events cascade;
+drop table if exists public.matches cascade;
+drop table if exists public.teams cascade;
+
 create extension if not exists pgcrypto;
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
 
 do $$
 begin
@@ -52,7 +64,6 @@ begin
 exception when duplicate_object then null;
 end $$;
 
-alter type public.bonus_pick_type add value if not exists 'most_cards_country';
 
 create table if not exists public.pools (
   id uuid primary key default gen_random_uuid(),
