@@ -35,10 +35,12 @@ export function getBonusLockAt(data: BootstrapData) {
     return data.pool.bonusLockAt;
   }
 
+  // Specials lock at the first match's pick lock (15 min before kickoff),
+  // matching the regular match picks.
   return [...data.matches].sort(
     (left, right) =>
       new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
-  )[0]?.kickoffAt;
+  )[0]?.predictionLockAt;
 }
 
 export function getSpecialsProgress(data: BootstrapData, now = new Date()) {

@@ -78,11 +78,14 @@ export async function POST(request: Request) {
   if (!bonusLockAt) {
     const { data: firstMatch } = await supabase
       .from("matches")
-      .select("kickoff_at")
+      .select("prediction_lock_at")
       .order("kickoff_at", { ascending: true })
       .limit(1)
       .maybeSingle();
-    bonusLockAt = firstMatch?.kickoff_at ? new Date(firstMatch.kickoff_at) : undefined;
+    // Lock specials at the first match's pick lock (15 min before kickoff).
+    bonusLockAt = firstMatch?.prediction_lock_at
+      ? new Date(firstMatch.prediction_lock_at)
+      : undefined;
   }
 
   if (bonusLockAt && bonusLockAt <= new Date()) {
