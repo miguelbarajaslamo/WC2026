@@ -9,7 +9,28 @@ type SyncResult = {
   message: string;
 };
 
-type SyncMode = "live" | "post-match" | "reference" | "squads" | "stats";
+type SyncMode =
+  | "live"
+  | "post-match"
+  | "reference"
+  | "squads"
+  | "stats"
+  | "form";
+
+// Stage category for the per-stage score-prediction setting (mirrors
+// src/lib/stages.ts). 1X2 stages never award the exact-score bonus.
+function stageCategory(stage: string): string {
+  const s = (stage ?? "").toLowerCase();
+  if (s.includes("group")) return "group";
+  if (s.includes("round of 32") || s.includes("1/16")) return "r32";
+  if (s.includes("round of 16") || s.includes("1/8")) return "r16";
+  if (s.includes("quarter") || s.includes("1/4")) return "qf";
+  if (s.includes("semi") || s.includes("1/2")) return "sf";
+  if (s.includes("final") || s.includes("3rd place") || s.includes("third place")) {
+    return "final";
+  }
+  return "group";
+}
 
 type ApiFootballFixture = {
   fixture: {
@@ -138,6 +159,7 @@ type ApiFootballSquadResponse = {
 type PoolRow = {
   id: string;
   scoring_mode: "traditional" | "pot";
+  score_prediction_stages: string[] | null;
 };
 
 type PoolMemberRow = {
@@ -233,7 +255,8 @@ function syncModeFromRequest(request: Request): SyncMode {
     mode === "post-match" ||
     mode === "reference" ||
     mode === "squads" ||
-    mode === "stats"
+    mode === "stats" ||
+    mode === "form"
   ) {
     return mode;
   }
@@ -265,10 +288,92 @@ async function runSyncMode(
     };
   }
 
+  if (mode === "form") {
+    return runFormSync(supabase);
+  }
+
   return runLiveLoop(supabase);
 }
 
+async function runFormSync(
+  supabase: ReturnType<typeof createClient>,
+): Promise<SyncResult> {
+  const { data: teams } = await supabase.from("teams").select("id");
+  const finished = new Set(["FT", "AET", "PEN"]);
+  let requestsUsed = 0;
+
+  for (const team of teams ?? []) {
+    const numericId = Number(team.id);
+    if (!Number.isFinite(numericId)) {
+      continue;
+    }
+
+    const response = await fetchApiFootball("/fixtures", {
+      team: numericId,
+      last: 5,
+    });
+    requestsUsed += 1;
+
+    const entries = (response.response ?? [])
+      .filter(
+        (item: ApiFootballFixture) =>
+          finished.has(item.fixture?.status?.short) &&
+          item.goals?.home !== null &&
+          item.goals?.away !== null,
+      )
+      .map((item: ApiFootballFixture) => {
+        const isHome = String(item.teams?.home?.id) === String(team.id);
+        const gf = (isHome ? item.goals.home : item.goals.away) ?? 0;
+        const ga = (isHome ? item.goals.away : item.goals.home) ?? 0;
+        const opponent = isHome ? item.teams?.away?.name : item.teams?.home?.name;
+        return {
+          date: item.fixture.date,
+          competition:
+            (item.league as { name?: string }).name ?? "",
+          wc: item.league?.id === 1,
+          opponent: opponent ?? "TBD",
+          gf,
+          ga,
+          result: gf > ga ? "W" : gf < ga ? "L" : "D",
+        };
+      })
+      .sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+    await supabase
+      .from("teams")
+      .update({ recent_form: entries })
+      .eq("id", team.id);
+  }
+
+  return {
+    message: `Recent form synced for ${teams?.length ?? 0} teams.`,
+    requestsUsed,
+  };
+}
+
 async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<SyncResult> {
+  // Skip the API entirely when nothing is in play: a match counts as "in
+  // window" if it's live/halftime, or kicked off in the last ~3.5h and isn't
+  // finished yet. This keeps idle minutes at zero API requests.
+  const windowStart = new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString();
+  const windowEnd = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+  const { data: inWindow } = await supabase
+    .from("matches")
+    .select("id")
+    .in("status", ["live", "halftime", "scheduled"])
+    .gte("kickoff_at", windowStart)
+    .lte("kickoff_at", windowEnd)
+    .limit(1);
+
+  if (!inWindow || inWindow.length === 0) {
+    return {
+      message: "No matches in window; skipped live poll.",
+      requestsUsed: 0,
+    };
+  }
+
   const { data: lockAcquired, error: lockError } = await supabase.rpc(
     "try_world_cup_sync_lock",
     { lock_key: syncLockKey },
@@ -912,12 +1017,12 @@ async function recalculateFinishedFixtures(
 
   const { data: matches } = await supabase
     .from("matches")
-    .select("id,home_score,away_score,status")
+    .select("id,home_score,away_score,status,stage")
     .in("id", matchIds)
     .eq("status", "finished");
   const { data: pools } = await supabase
     .from("pools")
-    .select("id,scoring_mode")
+    .select("id,scoring_mode,score_prediction_stages")
     .returns<PoolRow[]>();
   const { data: members } = await supabase
     .from("pool_members")
@@ -952,9 +1057,14 @@ async function recalculateFinishedFixtures(
         pool.scoring_mode === "pot" && resultWinners.length > 0
           ? poolMemberCount / resultWinners.length
           : 0;
+      // 1X2 stages never award the exact-score bonus.
+      const scorePrediction = (pool.score_prediction_stages ?? []).includes(
+        stageCategory((match as { stage?: string }).stage ?? ""),
+      );
 
       const scoreRows = predictions.map((prediction) => {
         const exact =
+          scorePrediction &&
           prediction.home_score === match.home_score &&
           prediction.away_score === match.away_score;
         const correctResult = prediction.predicted_result === finalResult;
