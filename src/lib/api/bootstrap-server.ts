@@ -60,6 +60,7 @@ type TeamRow = {
   iso2: string | null;
   name: string;
   short_name: string;
+  recent_form: Team["recentForm"] | null;
 };
 
 type PlayerRow = {
@@ -273,6 +274,7 @@ function mapTeam(row: TeamRow): Team {
     iso2: row.iso2 ?? undefined,
     name: row.name,
     shortName: row.short_name,
+    recentForm: row.recent_form ?? [],
   };
 }
 
@@ -632,7 +634,7 @@ export async function buildSupabaseBootstrapData({
     selectMany<TeamRow>(
       supabase
         .from("teams")
-        .select("id,name,short_name,iso2,group_name,flag_url"),
+        .select("id,name,short_name,iso2,group_name,flag_url,recent_form"),
     ),
     selectAllPaged<PlayerRow>((from, to) =>
       supabase

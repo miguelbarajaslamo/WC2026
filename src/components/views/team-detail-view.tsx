@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Flag } from "@/components/ui/flag";
+import { FormSquares } from "@/components/app/form-squares";
 import { MatchRow } from "@/components/app/match-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -43,6 +44,12 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
         <p className="text-sm font-bold text-white/70">
           {team.name} · {team.groupName}
         </p>
+        <div className="mt-3">
+          <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-emerald-200">
+            Recent form
+          </p>
+          <FormSquares form={team.recentForm} />
+        </div>
       </section>
 
       {standings ? (

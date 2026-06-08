@@ -22,6 +22,15 @@ export const supportedBonusPickTypes = [
 
 export type BonusPickType = (typeof supportedBonusPickTypes)[number];
 
+export type TeamFormEntry = {
+  date: string;
+  competition: string;
+  opponent: string;
+  gf: number;
+  ga: number;
+  result: "W" | "D" | "L";
+};
+
 export type Team = {
   id: string;
   name: string;
@@ -29,6 +38,7 @@ export type Team = {
   iso2?: string;
   groupName?: string;
   flagUrl?: string;
+  recentForm?: TeamFormEntry[];
 };
 
 export type Player = {
