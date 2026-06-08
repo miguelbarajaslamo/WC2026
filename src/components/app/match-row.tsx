@@ -26,7 +26,7 @@ function TeamLine({
     <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2">
       <Flag code={team.iso2} label={team.name} />
       <span className="flex min-w-0 items-center gap-1.5">
-        <span className="truncate text-sm font-black">{team.shortName}</span>
+        <span className="w-9 shrink-0 text-sm font-black">{team.shortName}</span>
         <FormSquares form={team.recentForm} interactive={false} size="sm" />
       </span>
       <span className="font-mono text-base font-black tabular-nums">

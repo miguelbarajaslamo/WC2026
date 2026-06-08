@@ -206,7 +206,7 @@ function ScoreLine({
     <div className="grid grid-cols-[1fr_104px] items-center gap-2">
       <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
         <Flag code={iso2} label={teamName} />
-        <span className="truncate">{label}</span>
+        <span className="w-9 shrink-0">{label}</span>
         <FormSquares className="ml-0.5" form={form} size="md" />
       </span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
