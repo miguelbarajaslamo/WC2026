@@ -51,6 +51,8 @@ async function teamForm(teamId) {
       return {
         date: item.fixture.date,
         competition: item.league?.name ?? "",
+        // league id 1 is the World Cup tournament itself (not qualifiers).
+        wc: item.league?.id === 1,
         opponent: opponent ?? "TBD",
         gf,
         ga,

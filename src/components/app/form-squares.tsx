@@ -16,6 +16,12 @@ const RESULT_LABEL: Record<TeamFormEntry["result"], string> = {
   L: "Loss",
 };
 
+const SIZE_STYLE: Record<"sm" | "md" | "lg", string> = {
+  sm: "size-4 text-[8px]",
+  md: "size-5 text-[9px]",
+  lg: "size-6 text-[10px]",
+};
+
 function summary(entry: TeamFormEntry) {
   return `${RESULT_LABEL[entry.result]} ${entry.gf}-${entry.ga} vs ${entry.opponent}`;
 }
@@ -28,10 +34,8 @@ export function FormSquares({
 }: {
   className?: string;
   form?: TeamFormEntry[];
-  // interactive = tappable squares with an opponent/score popup (team page).
-  // non-interactive = plain coloured squares for dense cards (safe inside links).
   interactive?: boolean;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -41,19 +45,21 @@ export function FormSquares({
     ) : null;
   }
 
-  const box =
-    size === "sm" ? "size-4 text-[8px]" : "size-6 text-[10px]";
+  // World Cup matches get a highlighted edge so they stand out from friendlies.
+  const squareClass = (entry: TeamFormEntry) =>
+    cn(
+      "grid shrink-0 place-items-center rounded font-black text-white",
+      SIZE_STYLE[size],
+      RESULT_STYLE[entry.result],
+      entry.wc && "ring-2 ring-amber-300",
+    );
 
   if (!interactive) {
     return (
       <div className={cn("flex items-center gap-0.5", className)}>
         {form.map((entry, index) => (
           <span
-            className={cn(
-              "grid shrink-0 place-items-center rounded font-black text-white",
-              box,
-              RESULT_STYLE[entry.result],
-            )}
+            className={squareClass(entry)}
             key={`${entry.date}-${index}`}
             title={summary(entry)}
           >
@@ -70,11 +76,7 @@ export function FormSquares({
         <div className="relative" key={`${entry.date}-${index}`}>
           <button
             aria-label={summary(entry)}
-            className={cn(
-              "grid place-items-center rounded font-black text-white",
-              box,
-              RESULT_STYLE[entry.result],
-            )}
+            className={squareClass(entry)}
             onClick={() => setOpenIndex(openIndex === index ? null : index)}
             type="button"
           >
@@ -83,14 +85,17 @@ export function FormSquares({
           {openIndex === index ? (
             <div
               className={cn(
-                "absolute top-full z-30 mt-1 w-max max-w-[180px] rounded-md bg-white px-2 py-1.5 text-center text-stone-950 shadow-xl",
-                // Anchor early squares left and later ones right so the popup
-                // never runs off the screen edge.
+                "absolute top-full z-30 mt-1 w-max max-w-[200px] rounded-md bg-white px-2 py-1.5 text-center text-stone-950 shadow-xl",
                 index < form.length / 2 ? "left-0" : "right-0",
               )}
             >
-              <p className="text-xs font-black">
+              <p className="flex items-center justify-center gap-1.5 text-xs font-black">
                 {RESULT_LABEL[entry.result]} {entry.gf}-{entry.ga}
+                {entry.wc ? (
+                  <span className="rounded bg-amber-300 px-1 py-0.5 text-[9px] font-black uppercase text-stone-950">
+                    WC
+                  </span>
+                ) : null}
               </p>
               <p className="text-[11px] font-bold text-stone-600">
                 vs {entry.opponent}

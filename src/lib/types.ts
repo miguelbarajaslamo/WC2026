@@ -29,6 +29,7 @@ export type TeamFormEntry = {
   gf: number;
   ga: number;
   result: "W" | "D" | "L";
+  wc?: boolean;
 };
 
 export type Team = {

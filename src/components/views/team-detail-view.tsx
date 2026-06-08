@@ -48,7 +48,7 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
           <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-emerald-200">
             Recent form
           </p>
-          <FormSquares form={team.recentForm} />
+          <FormSquares form={team.recentForm} size="lg" />
         </div>
       </section>
 
