@@ -236,8 +236,10 @@ function TeamFormRow({ team }: { team: Team }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
       <Flag code={team.iso2} label={team.name} />
-      <span className="w-9 shrink-0">{team.shortName}</span>
-      <FormSquares className="ml-0.5" form={team.recentForm} size="md" />
+      <span className="min-w-0 truncate" title={team.name}>
+        {team.name}
+      </span>
+      <FormSquares className="ml-0.5 shrink-0" form={team.recentForm} size="md" />
     </span>
   );
 }
@@ -299,8 +301,10 @@ function ScoreLine({
     <div className="grid grid-cols-[1fr_104px] items-center gap-2">
       <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
         <Flag code={iso2} label={teamName} />
-        <span className="w-9 shrink-0">{label}</span>
-        <FormSquares className="ml-0.5" form={form} size="md" />
+        <span className="min-w-0 truncate" title={teamName}>
+          {teamName}
+        </span>
+        <FormSquares className="ml-0.5 shrink-0" form={form} size="md" />
       </span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
         <button
