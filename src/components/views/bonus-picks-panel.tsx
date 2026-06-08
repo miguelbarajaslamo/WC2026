@@ -12,6 +12,15 @@ import {
 } from "@/lib/specials";
 import type { BonusPick, BonusPickType, BootstrapData } from "@/lib/types";
 
+// Strip accents/punctuation so "Mbappe" matches "Mbappé", "Turkiye" → "Türkiye".
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export function BonusPicksPanel({ data }: { data: BootstrapData }) {
   const progress = getSpecialsProgress(data);
 
@@ -75,12 +84,26 @@ function BonusPickRow({
   const [message, setMessage] = useState(existing ? "Saved" : "Missing");
   const dirty = optionId !== (existing?.optionId ?? "");
 
-  const trimmedQuery = query.trim().toLowerCase();
-  const filtered = (
-    trimmedQuery
-      ? options.filter((option) => option.label.toLowerCase().includes(trimmedQuery))
-      : options
-  ).slice(0, 50);
+  const normalizedQuery = normalizeText(query);
+  const filtered = (() => {
+    if (!normalizedQuery) {
+      return options.slice(0, 100);
+    }
+    return options
+      .map((option) => ({ option, label: normalizeText(option.label) }))
+      .filter((entry) => entry.label.includes(normalizedQuery))
+      .sort((left, right) => {
+        // Prefix matches first, so the searched name surfaces above the cap.
+        const leftPrefix = left.label.startsWith(normalizedQuery) ? 0 : 1;
+        const rightPrefix = right.label.startsWith(normalizedQuery) ? 0 : 1;
+        if (leftPrefix !== rightPrefix) {
+          return leftPrefix - rightPrefix;
+        }
+        return left.label.localeCompare(right.label);
+      })
+      .slice(0, 100)
+      .map((entry) => entry.option);
+  })();
 
   async function save() {
     const selectedOption = options.find((option) => option.id === optionId);
