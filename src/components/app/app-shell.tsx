@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowLeft,
   BarChart3,
   CalendarDays,
   ChevronDown,
@@ -13,7 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { PoolGate } from "@/components/app/pool-gate";
 import { cn } from "@/lib/cn";
 
@@ -50,21 +51,38 @@ export function AppShell({
   title: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  // Detail/sub views (anything not a primary/menu destination) get a back button.
+  const isTopLevel = [...primaryNav, ...menuNav].some(
+    (item) => item.href === pathname,
+  );
 
   return (
     <PoolGate>
     <div className="min-h-dvh bg-stone-100 text-stone-950">
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#022c22] pt-[var(--safe-top)] text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <Link className="min-w-0" href="/">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
-              WORLD CUP PICKS
-            </p>
-            <h1 className="truncate text-xl font-black">{title}</h1>
-            {kicker ? (
-              <p className="truncate text-xs font-bold text-white/60">{kicker}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            {!isTopLevel ? (
+              <button
+                aria-label="Go back"
+                className="grid size-10 shrink-0 place-items-center rounded-md bg-white/10 text-white ring-1 ring-white/15"
+                onClick={() => router.back()}
+                type="button"
+              >
+                <ArrowLeft size={20} />
+              </button>
             ) : null}
-          </Link>
+            <Link className="min-w-0" href="/">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                WORLD CUP PICKS
+              </p>
+              <h1 className="truncate text-xl font-black">{title}</h1>
+              {kicker ? (
+                <p className="truncate text-xs font-bold text-white/60">{kicker}</p>
+              ) : null}
+            </Link>
+          </div>
 
           <details className="relative">
             <summary
