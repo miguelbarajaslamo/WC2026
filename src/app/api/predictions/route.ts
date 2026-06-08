@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
+import { matchUsesScorePrediction } from "@/lib/stages";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { PredictionResult } from "@/lib/types";
 
 type PredictionPayload = {
   poolId?: string;
   matchId?: string;
   homeScore?: number;
   awayScore?: number;
+  result?: PredictionResult;
 };
+
+const RESULTS: PredictionResult[] = ["home", "draw", "away"];
 
 export async function POST(request: Request) {
   const payload = (await request.json()) as PredictionPayload;
 
-  if (
-    !payload.poolId ||
-    !payload.matchId ||
-    !isValidPredictionScore(payload.homeScore) ||
-    !isValidPredictionScore(payload.awayScore)
-  ) {
+  if (!payload.poolId || !payload.matchId) {
     return NextResponse.json({ error: "Invalid prediction payload" }, { status: 400 });
   }
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const [{ data: member }, { data: match }] = await Promise.all([
+  const [{ data: member }, { data: match }, { data: pool }] = await Promise.all([
     supabase
       .from("pool_members")
       .select("pool_id")
@@ -40,8 +40,13 @@ export async function POST(request: Request) {
       .maybeSingle(),
     supabase
       .from("matches")
-      .select("id,prediction_lock_at")
+      .select("id,prediction_lock_at,stage")
       .eq("id", payload.matchId)
+      .maybeSingle(),
+    supabase
+      .from("pools")
+      .select("score_prediction_stages")
+      .eq("id", payload.poolId)
       .maybeSingle(),
   ]);
 
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "You are not a member of this pool" }, { status: 403 });
   }
 
-  if (!match) {
+  if (!match || !pool) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
@@ -57,14 +62,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This match is locked" }, { status: 403 });
   }
 
-  const predictedResult = scoreResult(payload.homeScore, payload.awayScore);
+  const useScore = matchUsesScorePrediction(
+    pool.score_prediction_stages ?? [],
+    match.stage,
+  );
+
+  let predictedResult: PredictionResult;
+  let homeScore: number;
+  let awayScore: number;
+
+  if (useScore) {
+    if (
+      !isValidPredictionScore(payload.homeScore) ||
+      !isValidPredictionScore(payload.awayScore)
+    ) {
+      return NextResponse.json({ error: "Invalid prediction payload" }, { status: 400 });
+    }
+    homeScore = payload.homeScore;
+    awayScore = payload.awayScore;
+    predictedResult = scoreResult(homeScore, awayScore);
+  } else {
+    // 1X2: a result-only pick. Scores are stored as 0-0 and ignored by scoring.
+    if (!payload.result || !RESULTS.includes(payload.result)) {
+      return NextResponse.json({ error: "Invalid prediction payload" }, { status: 400 });
+    }
+    predictedResult = payload.result;
+    homeScore = 0;
+    awayScore = 0;
+  }
 
   const { data, error } = await supabase
     .from("predictions")
     .upsert(
       {
-        away_score: payload.awayScore,
-        home_score: payload.homeScore,
+        away_score: awayScore,
+        home_score: homeScore,
         match_id: payload.matchId,
         pool_id: payload.poolId,
         predicted_result: predictedResult,

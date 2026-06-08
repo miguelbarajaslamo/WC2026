@@ -153,6 +153,7 @@ export type Pool = {
   scoringLockedAt?: string;
   bonusLockAt?: string;
   lockMinutesBeforeKickoff: number;
+  scorePredictionStages: string[];
 };
 
 export type LeaderboardRow = {

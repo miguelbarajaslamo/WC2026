@@ -42,6 +42,7 @@ type PoolRow = {
   prize_note: string | null;
   scoring_locked_at: string | null;
   scoring_mode: "traditional" | "pot";
+  score_prediction_stages: string[] | null;
 };
 
 type ProfileRow = {
@@ -253,6 +254,7 @@ function mapPool(row: PoolRow): Pool {
     prizeNote: row.prize_note ?? "",
     scoringLockedAt: row.scoring_locked_at ?? undefined,
     scoringMode: row.scoring_mode,
+    scorePredictionStages: row.score_prediction_stages ?? [],
   };
 }
 
@@ -602,7 +604,7 @@ export async function buildSupabaseBootstrapData({
       supabase
         .from("pools")
         .select(
-          "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff",
+          "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff,score_prediction_stages",
         )
         .eq("id", currentMembership.pool_id)
         .single(),

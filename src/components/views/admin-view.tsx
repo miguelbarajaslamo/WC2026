@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { ScoringStagesCard } from "@/components/views/scoring-stages-card";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { Flag } from "@/components/ui/flag";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
@@ -488,6 +489,8 @@ export function AdminView() {
           snapshots.
         </p>
       </section>
+
+      <ScoringStagesCard data={bootstrap} />
 
       {notice ? (
         <div

@@ -56,6 +56,8 @@ export function matchFinishedScore(match: Match): FinishedScore | null {
 export function calculateTraditionalScore(
   prediction: Pick<Prediction, "awayScore" | "homeScore" | "predictedResult">,
   finalScore: FinishedScore | null,
+  // 1X2 (result-only) matches never award the exact-score bonus.
+  scorePrediction = true,
 ): TraditionalScoreBreakdown {
   if (!finalScore) {
     return { points: 0, reason: "not_finished" };
@@ -68,6 +70,7 @@ export function calculateTraditionalScore(
   }
 
   if (
+    scorePrediction &&
     prediction.homeScore === finalScore.homeScore &&
     prediction.awayScore === finalScore.awayScore
   ) {
@@ -87,12 +90,15 @@ export function calculatePotScores({
   activePlayerCount,
   finalScore,
   predictions,
+  scorePrediction = true,
 }: {
   activePlayerCount: number;
   finalScore: FinishedScore | null;
   predictions: Array<
     Pick<Prediction, "awayScore" | "homeScore" | "id" | "predictedResult">
   >;
+  // 1X2 (result-only) matches never award the exact-score bonus.
+  scorePrediction?: boolean;
 }): PotScoreBreakdown {
   const pointsByPredictionId = Object.fromEntries(
     predictions.map((prediction) => [prediction.id, 0]),
@@ -111,13 +117,15 @@ export function calculatePotScores({
   const resultWinners = predictions.filter(
     (prediction) => prediction.predictedResult === finalResult,
   );
-  const exactWinners = predictions
-    .filter(
-      (prediction) =>
-        prediction.homeScore === finalScore.homeScore &&
-        prediction.awayScore === finalScore.awayScore,
-    )
-    .map((prediction) => prediction.id);
+  const exactWinners = scorePrediction
+    ? predictions
+        .filter(
+          (prediction) =>
+            prediction.homeScore === finalScore.homeScore &&
+            prediction.awayScore === finalScore.awayScore,
+        )
+        .map((prediction) => prediction.id)
+    : [];
 
   const resultShare =
     resultWinners.length > 0 ? activePlayerCount / resultWinners.length : 0;

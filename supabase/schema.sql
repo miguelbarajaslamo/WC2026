@@ -757,6 +757,8 @@ alter table public.teams
   add column if not exists recent_form jsonb not null default '[]'::jsonb;
 alter table public.team_squad_members
   add column if not exists pre_wc_stats jsonb not null default '{}'::jsonb;
+alter table public.pools
+  add column if not exists score_prediction_stages text[] not null default '{}'::text[];
 
 alter table public.matches add column if not exists venue text;
 alter table public.matches add column if not exists city text;

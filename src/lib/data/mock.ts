@@ -25,6 +25,7 @@ const pool: Pool = {
   prizeNote: "Winner takes bragging rights and the agreed prize pot.",
   scoringMode: "traditional",
   lockMinutesBeforeKickoff: 15,
+  scorePredictionStages: [],
 };
 
 const profiles: Profile[] = [

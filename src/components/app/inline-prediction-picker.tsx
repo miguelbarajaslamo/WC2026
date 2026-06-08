@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { Flag } from "@/components/ui/flag";
@@ -9,11 +9,14 @@ import { FormSquares } from "@/components/app/form-squares";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
 import { scoreResult } from "@/lib/predictions";
+import { matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type {
   BootstrapData,
   Match,
   Prediction,
+  PredictionResult,
+  Team,
   TeamFormEntry,
 } from "@/lib/types";
 
@@ -27,10 +30,21 @@ export function InlinePredictionPicker({
   match: Match;
 }) {
   const existing = getUserPrediction(data, match.id);
+  const useScore = matchUsesScorePrediction(
+    data.pool.scorePredictionStages,
+    match.stage,
+  );
+
   const [homeScore, setHomeScore] = useState(existing?.homeScore ?? 0);
   const [awayScore, setAwayScore] = useState(existing?.awayScore ?? 0);
+  const [result, setResult] = useState<PredictionResult | "">(
+    existing?.predictedResult ?? "",
+  );
   const [lastSavedScore, setLastSavedScore] = useState(
     existing ? `${existing.homeScore}-${existing.awayScore}` : "",
+  );
+  const [lastSavedResult, setLastSavedResult] = useState<PredictionResult | "">(
+    existing?.predictedResult ?? "",
   );
   const [message, setMessage] = useState(existing ? "Saved" : "Not saved");
   const [saving, setSaving] = useState(false);
@@ -38,14 +52,17 @@ export function InlinePredictionPicker({
   const locked = isMatchLocked(match);
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
-  const result = useMemo(
-    () => scoreResult(homeScore, awayScore),
-    [awayScore, homeScore],
-  );
-  const dirty = `${homeScore}-${awayScore}` !== lastSavedScore;
+
+  const dirty = useScore
+    ? `${homeScore}-${awayScore}` !== lastSavedScore
+    : result !== lastSavedResult;
+  const canSave = dirty && (useScore || result !== "");
+  const predictedResult: PredictionResult = useScore
+    ? scoreResult(homeScore, awayScore)
+    : result || "draw";
 
   async function savePrediction() {
-    if (locked) {
+    if (locked || !canSave) {
       return;
     }
 
@@ -55,11 +72,11 @@ export function InlinePredictionPicker({
 
     const optimisticPrediction: Prediction = {
       id: existing?.id ?? `local-${match.id}-${data.currentUserId}`,
-      awayScore,
-      homeScore,
+      awayScore: useScore ? awayScore : 0,
+      homeScore: useScore ? homeScore : 0,
       matchId: match.id,
       poolId: data.pool.id,
-      predictedResult: result,
+      predictedResult,
       updatedAt: new Date().toISOString(),
       userId: data.currentUserId,
     };
@@ -85,12 +102,11 @@ export function InlinePredictionPicker({
 
     try {
       const response = await fetch("/api/predictions", {
-        body: JSON.stringify({
-          awayScore,
-          homeScore,
-          matchId: match.id,
-          poolId: data.pool.id,
-        }),
+        body: JSON.stringify(
+          useScore
+            ? { awayScore, homeScore, matchId: match.id, poolId: data.pool.id }
+            : { matchId: match.id, poolId: data.pool.id, result },
+        ),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
@@ -105,6 +121,7 @@ export function InlinePredictionPicker({
       }
 
       setLastSavedScore(`${homeScore}-${awayScore}`);
+      setLastSavedResult(result);
       setMessage("Saved");
       void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
     } catch {
@@ -148,38 +165,114 @@ export function InlinePredictionPicker({
         </span>
       </div>
 
-      <div className="mt-4 space-y-2">
-        <ScoreLine
-          disabled={locked}
-          form={home.recentForm}
-          iso2={home.iso2}
-          label={home.shortName}
-          onChange={setHomeScore}
-          side="home"
-          teamName={home.name}
-          value={homeScore}
-        />
-        <ScoreLine
-          disabled={locked}
-          form={away.recentForm}
-          iso2={away.iso2}
-          label={away.shortName}
-          onChange={setAwayScore}
-          side="away"
-          teamName={away.name}
-          value={awayScore}
-        />
-      </div>
+      {useScore ? (
+        <div className="mt-4 space-y-2">
+          <ScoreLine
+            disabled={locked}
+            form={home.recentForm}
+            iso2={home.iso2}
+            label={home.shortName}
+            onChange={setHomeScore}
+            side="home"
+            teamName={home.name}
+            value={homeScore}
+          />
+          <ScoreLine
+            disabled={locked}
+            form={away.recentForm}
+            iso2={away.iso2}
+            label={away.shortName}
+            onChange={setAwayScore}
+            side="away"
+            teamName={away.name}
+            value={awayScore}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 space-y-2">
+            <TeamFormRow team={home} />
+            <TeamFormRow team={away} />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <ResultButton
+              disabled={locked}
+              label={home.shortName}
+              onClick={() => setResult("home")}
+              selected={result === "home"}
+              sub="1"
+            />
+            <ResultButton
+              disabled={locked}
+              label="Draw"
+              onClick={() => setResult("draw")}
+              selected={result === "draw"}
+              sub="X"
+            />
+            <ResultButton
+              disabled={locked}
+              label={away.shortName}
+              onClick={() => setResult("away")}
+              selected={result === "away"}
+              sub="2"
+            />
+          </div>
+        </>
+      )}
 
       <button
         className="mt-3 h-11 w-full rounded-md bg-stone-950 text-xs font-black uppercase tracking-wide text-white disabled:bg-stone-300 disabled:text-stone-500"
-        disabled={locked || saving || !dirty}
+        disabled={locked || saving || !canSave}
         onClick={savePrediction}
         type="button"
       >
         {saving ? "Saving" : dirty ? "Save pick" : "Saved"}
       </button>
     </div>
+  );
+}
+
+function TeamFormRow({ team }: { team: Team }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
+      <Flag code={team.iso2} label={team.name} />
+      <span className="w-9 shrink-0">{team.shortName}</span>
+      <FormSquares className="ml-0.5" form={team.recentForm} size="md" />
+    </span>
+  );
+}
+
+function ResultButton({
+  disabled,
+  label,
+  onClick,
+  selected,
+  sub,
+}: {
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+  selected: boolean;
+  sub: string;
+}) {
+  return (
+    <button
+      aria-pressed={selected}
+      className={cn(
+        "rounded-md border py-2 text-center",
+        selected
+          ? "border-emerald-700 bg-emerald-50 text-emerald-900"
+          : "border-black/10 bg-stone-50 text-stone-600",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+        {sub}
+      </p>
+      <p className="truncate text-sm font-black">{label}</p>
+    </button>
   );
 }
 

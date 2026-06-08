@@ -5,13 +5,15 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Flag } from "@/components/ui/flag";
 import { FormSquares } from "@/components/app/form-squares";
 import { StatusPill } from "@/components/ui/status-pill";
-import { formatMinute, predictionLabel, scorersSummary, scoreText } from "@/lib/format";
+import { formatMinute, scorersSummary, scoreText } from "@/lib/format";
 import {
   getMatchEvents,
   getTeam,
   getUserPrediction,
   isMatchLocked,
 } from "@/lib/data/selectors";
+import { predictionResultLabel } from "@/lib/predictions";
+import { matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type { BootstrapData, Match } from "@/lib/types";
 
@@ -52,6 +54,19 @@ export function MatchRow({
   const events = getMatchEvents(data, match.id);
   const prediction = getUserPrediction(data, match.id, predictionUserId);
   const locked = isMatchLocked(match);
+  const useScore = matchUsesScorePrediction(
+    data.pool.scorePredictionStages,
+    match.stage,
+  );
+  const pickLabel = !prediction
+    ? "Missing"
+    : useScore
+      ? `${prediction.homeScore}-${prediction.awayScore}`
+      : predictionResultLabel({
+          awayShortName: away.shortName,
+          homeShortName: home.shortName,
+          result: prediction.predictedResult,
+        });
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentPath = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
@@ -99,7 +114,7 @@ export function MatchRow({
         <span className="font-bold text-stone-600">
           {predictionLabelPrefix}:{" "}
           <strong className={prediction ? "text-stone-950" : "text-red-700"}>
-            {predictionLabel(prediction)}
+            {pickLabel}
           </strong>
         </span>
         <span className="font-black uppercase tracking-wide text-stone-500">

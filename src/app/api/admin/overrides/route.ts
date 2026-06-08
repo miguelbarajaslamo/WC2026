@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/recalculation";
 import { isSystemAdminUser } from "@/lib/admin/access";
 import { determineResult } from "@/lib/scoring/scoring";
+import { matchUsesScorePrediction } from "@/lib/stages";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -452,7 +453,11 @@ async function recalculateMatchScores({
 
   const [{ data: pool }, { data: match }, { data: predictions }, { data: members }] =
     await Promise.all([
-      admin.from("pools").select("id,scoring_mode").eq("id", poolId).single(),
+      admin
+        .from("pools")
+        .select("id,scoring_mode,score_prediction_stages")
+        .eq("id", poolId)
+        .single(),
       admin
         .from("matches")
         .select(
@@ -478,6 +483,10 @@ async function recalculateMatchScores({
     poolId,
     predictions: (predictions ?? []).map(mapPrediction),
     scoringMode: pool.scoring_mode as ScoringMode,
+    scorePrediction: matchUsesScorePrediction(
+      (pool as { score_prediction_stages?: string[] }).score_prediction_stages,
+      match.stage,
+    ),
   });
 
   if (rows.length > 0) {

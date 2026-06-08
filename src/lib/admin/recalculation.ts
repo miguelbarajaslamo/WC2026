@@ -41,12 +41,14 @@ export function buildMatchScoreRows({
   poolId,
   predictions,
   scoringMode,
+  scorePrediction = true,
 }: {
   activePlayerCount: number;
   match: Match;
   poolId: string;
   predictions: Prediction[];
   scoringMode: ScoringMode;
+  scorePrediction?: boolean;
 }): ScoreSnapshotUpsert[] {
   const finalScore = matchFinishedScore(match);
 
@@ -55,6 +57,7 @@ export function buildMatchScoreRows({
       activePlayerCount,
       finalScore,
       predictions,
+      scorePrediction,
     });
 
     return predictions.map((prediction) => ({
@@ -72,7 +75,7 @@ export function buildMatchScoreRows({
   }
 
   return predictions.map((prediction) => {
-    const score = calculateTraditionalScore(prediction, finalScore);
+    const score = calculateTraditionalScore(prediction, finalScore, scorePrediction);
 
     return {
       match_id: match.id,
