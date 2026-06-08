@@ -20,14 +20,14 @@ import { cn } from "@/lib/cn";
 
 const primaryNav = [
   { href: "/", icon: ClipboardList, label: "Today" },
-  { href: "/fixtures", icon: CalendarDays, label: "Fixtures" },
+  { href: "/groups", icon: Table2, label: "Groups" },
   { href: "/leaderboard", icon: Trophy, label: "Leaderboard" },
   { href: "/picks", icon: ListChecks, label: "Picks" },
 ];
 
 const menuNav = [
   { href: "/pool", icon: Users, label: "Pool" },
-  { href: "/groups", icon: Table2, label: "Groups" },
+  { href: "/fixtures", icon: CalendarDays, label: "Fixtures" },
   { href: "/stats", icon: BarChart3, label: "Stats" },
   { href: "/settings", icon: Settings, label: "Settings" },
   { href: "/admin", icon: Shield, label: "Admin" },

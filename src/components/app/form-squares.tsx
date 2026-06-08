@@ -81,7 +81,14 @@ export function FormSquares({
             {entry.result}
           </button>
           {openIndex === index ? (
-            <div className="absolute left-1/2 top-full z-30 mt-1 w-max max-w-[180px] -translate-x-1/2 rounded-md bg-white px-2 py-1.5 text-center text-stone-950 shadow-xl">
+            <div
+              className={cn(
+                "absolute top-full z-30 mt-1 w-max max-w-[180px] rounded-md bg-white px-2 py-1.5 text-center text-stone-950 shadow-xl",
+                // Anchor early squares left and later ones right so the popup
+                // never runs off the screen edge.
+                index < form.length / 2 ? "left-0" : "right-0",
+              )}
+            >
               <p className="text-xs font-black">
                 {RESULT_LABEL[entry.result]} {entry.gf}-{entry.ga}
               </p>

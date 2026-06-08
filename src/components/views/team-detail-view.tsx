@@ -79,23 +79,30 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
   );
 }
 
+const POSITION_GROUPS: Array<{ key: string; label: string; short: string }> = [
+  { key: "Goalkeeper", label: "Goalkeepers", short: "GK" },
+  { key: "Defender", label: "Defenders", short: "DEF" },
+  { key: "Midfielder", label: "Midfielders", short: "MID" },
+  { key: "Attacker", label: "Attackers", short: "ATT" },
+];
+
+const POSITION_SHORT: Record<string, string> = Object.fromEntries(
+  POSITION_GROUPS.map((group) => [group.key, group.short]),
+);
+
 type SquadRow = {
   playerId: string;
   name: string;
-  position: string;
+  position: string; // raw, for grouping
+  positionShort: string; // GK/DEF/MID/ATT, for display
   shirtNumber?: number;
-  // World Cup tournament stats (fill in during the tournament).
-  goals: number;
-  assists: number;
-  yellowCards: number;
-  redCards: number;
-  saves: number;
-  // Pre-tournament (season 2026 national-team) stats.
-  preGames: number;
-  preMinutes: number;
-  preAvg: number;
-  preGoals: number;
-  preAssists: number;
+  // Active stats — World Cup, or pre-WC when the toggle is on.
+  p: number; // games played
+  g: number;
+  a: number;
+  sv: number;
+  y: number;
+  r: number;
 };
 
 type SquadColumn = {
@@ -105,34 +112,30 @@ type SquadColumn = {
   get: (row: SquadRow) => number | string | undefined;
 };
 
-const BASE_COLUMNS: SquadColumn[] = [
+const SQUAD_COLUMNS: SquadColumn[] = [
   { key: "shirtNumber", label: "#", numeric: true, get: (r) => r.shirtNumber },
   { key: "name", label: "Player", numeric: false, get: (r) => r.name },
-  { key: "position", label: "Pos", numeric: false, get: (r) => r.position },
+  { key: "position", label: "Pos", numeric: false, get: (r) => r.positionShort },
+  { key: "p", label: "P", numeric: true, get: (r) => r.p },
+  { key: "g", label: "G", numeric: true, get: (r) => r.g },
+  { key: "a", label: "A", numeric: true, get: (r) => r.a },
+  { key: "sv", label: "SV", numeric: true, get: (r) => r.sv },
+  { key: "y", label: "Y", numeric: true, get: (r) => r.y },
+  { key: "r", label: "R", numeric: true, get: (r) => r.r },
 ];
 
-const WC_STAT_COLUMNS: SquadColumn[] = [
-  { key: "goals", label: "G", numeric: true, get: (r) => r.goals },
-  { key: "assists", label: "A", numeric: true, get: (r) => r.assists },
-  { key: "yellowCards", label: "Y", numeric: true, get: (r) => r.yellowCards },
-  { key: "redCards", label: "R", numeric: true, get: (r) => r.redCards },
-  { key: "saves", label: "Sv", numeric: true, get: (r) => r.saves },
-];
+const STAT_COLUMNS = SQUAD_COLUMNS.slice(3);
 
-const PREWC_STAT_COLUMNS: SquadColumn[] = [
-  { key: "preGames", label: "GP", numeric: true, get: (r) => r.preGames },
-  { key: "preMinutes", label: "Min", numeric: true, get: (r) => r.preMinutes },
-  { key: "preAvg", label: "Avg", numeric: true, get: (r) => r.preAvg },
-  { key: "preGoals", label: "G", numeric: true, get: (r) => r.preGoals },
-  { key: "preAssists", label: "A", numeric: true, get: (r) => r.preAssists },
-];
-
-const POSITION_GROUPS: Array<{ key: string; label: string }> = [
-  { key: "Goalkeeper", label: "Goalkeepers" },
-  { key: "Defender", label: "Defenders" },
-  { key: "Midfielder", label: "Midfielders" },
-  { key: "Attacker", label: "Attackers" },
-];
+function compareRows(a: SquadRow, b: SquadRow, column: SquadColumn) {
+  const av = column.get(a);
+  const bv = column.get(b);
+  if (column.numeric) {
+    const an = av == null ? Number.POSITIVE_INFINITY : Number(av);
+    const bn = bv == null ? Number.POSITIVE_INFINITY : Number(bv);
+    return an - bn;
+  }
+  return String(av).localeCompare(String(bv));
+}
 
 type SquadSort = { key: string; dir: "asc" | "desc" } | null;
 
@@ -142,59 +145,63 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
   const [showPreWc, setShowPreWc] = useState(false);
 
   const squad = useMemo<SquadRow[]>(() => {
+    // WC games played, counted from this team's per-match player stats.
+    const wcGames = new Map<string, number>();
+    for (const stat of data.matchPlayerStats) {
+      if (stat.teamId !== teamId) continue;
+      const key = stat.playerId ?? stat.playerName;
+      wcGames.set(key, (wcGames.get(key) ?? 0) + 1);
+    }
+
     return data.squadMembers
       .filter((member) => member.teamId === teamId && member.active)
       .map((member) => {
         const player = data.players.find((item) => item.id === member.playerId);
-        const stat = data.playerStatSnapshots.find(
+        const snap = data.playerStatSnapshots.find(
           (item) =>
             (item.playerId && item.playerId === member.playerId) ||
             (item.teamId === teamId && item.playerName === player?.name),
         );
         const pre = member.preWcStats;
-        const preGames = pre?.games ?? 0;
-        const preMinutes = pre?.minutes ?? 0;
+        const rawPosition = member.position ?? player?.position ?? "—";
+        const active = showPreWc
+          ? {
+              p: pre?.games ?? 0,
+              g: pre?.goals ?? 0,
+              a: pre?.assists ?? 0,
+              sv: pre?.saves ?? 0,
+              y: pre?.yellow ?? 0,
+              r: pre?.red ?? 0,
+            }
+          : {
+              p:
+                wcGames.get(member.playerId) ??
+                wcGames.get(player?.name ?? "") ??
+                0,
+              g: snap?.goals ?? 0,
+              a: snap?.assists ?? 0,
+              sv: snap?.saves ?? 0,
+              y: snap?.yellowCards ?? 0,
+              r: snap?.redCards ?? 0,
+            };
         return {
           playerId: member.playerId,
           name: player?.name ?? "Unknown",
-          position: member.position ?? player?.position ?? "—",
+          position: rawPosition,
+          positionShort: POSITION_SHORT[rawPosition] ?? rawPosition,
           shirtNumber: member.shirtNumber,
-          goals: stat?.goals ?? 0,
-          assists: stat?.assists ?? 0,
-          yellowCards: stat?.yellowCards ?? 0,
-          redCards: stat?.redCards ?? 0,
-          saves: stat?.saves ?? 0,
-          preGames,
-          preMinutes,
-          preAvg: preGames > 0 ? Math.round(preMinutes / preGames) : 0,
-          preGoals: pre?.goals ?? 0,
-          preAssists: pre?.assists ?? 0,
+          ...active,
         };
       });
-  }, [data, teamId]);
-
-  const columns = [
-    ...BASE_COLUMNS,
-    ...(showPreWc ? PREWC_STAT_COLUMNS : WC_STAT_COLUMNS),
-  ];
-
-  function compare(a: SquadRow, b: SquadRow, column: SquadColumn) {
-    const av = column.get(a);
-    const bv = column.get(b);
-    if (column.numeric) {
-      const an = av == null ? Number.POSITIVE_INFINITY : Number(av);
-      const bn = bv == null ? Number.POSITIVE_INFINITY : Number(bv);
-      return an - bn;
-    }
-    return String(av).localeCompare(String(bv));
-  }
+  }, [data, teamId, showPreWc]);
 
   // Either a flat sorted list, or position groups each with a header.
   const sections = useMemo(() => {
     if (sort) {
-      const column = columns.find((item) => item.key === sort.key) ?? BASE_COLUMNS[0];
+      const column =
+        SQUAD_COLUMNS.find((item) => item.key === sort.key) ?? SQUAD_COLUMNS[0];
       const rows = [...squad].sort((a, b) => {
-        const cmp = compare(a, b, column);
+        const cmp = compareRows(a, b, column);
         return sort.dir === "asc" ? cmp : -cmp;
       });
       return [{ label: null as string | null, rows }];
@@ -206,8 +213,7 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
       label: group.label,
       rows: squad.filter((row) => row.position === group.key).sort(byShirt),
     })).filter((section) => section.rows.length > 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [squad, sort, showPreWc]);
+  }, [squad, sort]);
 
   // Click cycles: group base → sort (default dir) → reversed → group base.
   function cycleSort(column: SquadColumn) {
@@ -278,7 +284,7 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-black/10 text-left">
-              {columns.map((column) => {
+              {SQUAD_COLUMNS.map((column) => {
                 const active = sort?.key === column.key;
                 return (
                   <th
@@ -317,7 +323,7 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
                   <tr className="bg-stone-100">
                     <td
                       className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-stone-500"
-                      colSpan={columns.length}
+                      colSpan={SQUAD_COLUMNS.length}
                     >
                       {section.label}
                     </td>
@@ -340,18 +346,13 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
                       </Link>
                     </td>
                     <td className="whitespace-nowrap p-2 text-stone-500">
-                      {row.position}
+                      {row.positionShort}
                     </td>
-                    {(showPreWc ? PREWC_STAT_COLUMNS : WC_STAT_COLUMNS).map(
-                      (column) => (
-                        <td
-                          className="p-2 text-center font-mono"
-                          key={column.key}
-                        >
-                          {column.get(row)}
-                        </td>
-                      ),
-                    )}
+                    {STAT_COLUMNS.map((column) => (
+                      <td className="p-2 text-center font-mono" key={column.key}>
+                        {column.get(row)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </Fragment>
