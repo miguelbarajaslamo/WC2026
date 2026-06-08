@@ -42,7 +42,7 @@ export function LeaderboardView() {
         {data.leaderboard.map((row) => (
           <Link
             className="grid grid-cols-[36px_40px_1fr_auto] items-center gap-3 rounded-lg border border-black/10 bg-white p-3 shadow-sm"
-            href={`/players/${row.userId}`}
+            href={`/members/${row.userId}`}
             key={row.userId}
           >
             <span className="font-mono text-lg font-black">{row.rank}</span>

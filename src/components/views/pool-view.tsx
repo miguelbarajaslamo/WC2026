@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -54,8 +56,9 @@ export function PoolView() {
           {data.members.map((member) => {
             const profile = getProfile(data, member.userId);
             return (
-              <div
-                className="grid grid-cols-[40px_1fr_auto] items-center gap-3"
+              <Link
+                className="grid grid-cols-[40px_1fr_auto_16px] items-center gap-3 rounded-md p-1 -m-1 hover:bg-stone-50"
+                href={`/members/${member.userId}`}
                 key={member.userId}
               >
                 <Avatar color={profile.avatarColor} name={profile.displayName} />
@@ -63,7 +66,8 @@ export function PoolView() {
                 <span className="rounded bg-stone-100 px-2 py-1 text-[10px] font-black uppercase text-stone-500">
                   {member.role}
                 </span>
-              </div>
+                <ChevronRight className="text-stone-300" size={16} />
+              </Link>
             );
           })}
         </div>

@@ -9,7 +9,7 @@ export default async function PlayerPage({
   const { playerId } = await params;
 
   return (
-    <AppShell kicker="Picks, points, history" title="Player">
+    <AppShell kicker="Squad and tournament stats" title="Player">
       <PlayerDetailView playerId={playerId} />
     </AppShell>
   );
