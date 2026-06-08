@@ -46,8 +46,10 @@ export function PicksView() {
           <button
             aria-pressed={filter === item.filter}
             className={cn(
-              "rounded-lg border border-black/10 bg-white p-3 text-center shadow-sm",
-              filter === item.filter && "bg-emerald-950 text-white",
+              "rounded-lg border border-black/10 p-3 text-center shadow-sm",
+              filter === item.filter
+                ? "bg-emerald-950 text-white"
+                : "bg-white text-stone-950",
             )}
             key={item.filter}
             onClick={() => setFilter(item.filter)}
@@ -56,8 +58,8 @@ export function PicksView() {
             <p className="font-mono text-xl font-black">{item.value}</p>
             <p
               className={cn(
-                "text-[10px] font-black uppercase tracking-wide text-stone-500",
-                filter === item.filter && "text-emerald-100",
+                "text-[10px] font-black uppercase tracking-wide",
+                filter === item.filter ? "text-emerald-100" : "text-stone-500",
               )}
             >
               {item.label}

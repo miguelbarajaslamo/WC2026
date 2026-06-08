@@ -55,8 +55,10 @@ export function FixturesView() {
             <button
               aria-pressed={filter === value}
               className={cn(
-                "h-10 rounded-md bg-stone-100 px-2 text-[10px] font-black uppercase text-stone-600",
-                filter === value && "bg-stone-950 text-white",
+                "flex h-10 items-center justify-center rounded-md px-1 text-[10px] font-black uppercase leading-none tracking-tight",
+                filter === value
+                  ? "bg-stone-950 text-white"
+                  : "bg-stone-100 text-stone-600",
               )}
               key={value}
               onClick={() => setFilter(value)}
