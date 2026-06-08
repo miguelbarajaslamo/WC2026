@@ -1,31 +1,58 @@
 "use client";
 
-import { Mail } from "lucide-react";
+import { Lock, Mail, User } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { cn } from "@/lib/cn";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+
+type Mode = "signin" | "signup";
 
 export function LoginView() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/";
+  const nextParam = searchParams.get("next");
+  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/";
   const invite = searchParams.get("invite");
+
+  const [mode, setMode] = useState<Mode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setMessage("");
+    setError("");
 
-    const response = await fetch("/api/auth/magic-link", {
-      body: JSON.stringify({ email, invite, next }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const body = (await response.json()) as { error?: string };
+    const supabase = createSupabaseBrowserClient();
+    const { error: authError } =
+      mode === "signup"
+        ? await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { display_name: displayName.trim() || undefined } },
+          })
+        : await supabase.auth.signInWithPassword({ email, password });
 
-    setSubmitting(false);
-    setMessage(response.ok ? "Magic link sent. Check your email." : body.error ?? "Could not send link.");
+    if (authError) {
+      setSubmitting(false);
+      setError(authError.message);
+      return;
+    }
+
+    // Now authenticated — redeem an invite if we arrived with one.
+    if (invite) {
+      await fetch("/api/invites/redeem", {
+        body: JSON.stringify({ code: invite }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }).catch(() => {});
+    }
+
+    // Full navigation so the server/proxy pick up the new session cookie.
+    window.location.assign(next);
   }
 
   return (
@@ -37,11 +64,50 @@ export function LoginView() {
         <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">
           WORLD CUP PICKS
         </p>
-        <h1 className="mt-2 text-3xl font-black">Sign in</h1>
+        <h1 className="mt-2 text-3xl font-black">
+          {mode === "signin" ? "Sign in" : "Create account"}
+        </h1>
         <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-          Enter your email to receive a magic link for WORLD CUP PICKS.
+          {mode === "signin"
+            ? "Enter your email and password."
+            : "Pick a display name, email, and password to join."}
         </p>
-        <label className="mt-5 grid grid-cols-[20px_1fr] items-center gap-2 rounded-md border border-black/10 bg-stone-50 px-3 py-3">
+
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-md bg-stone-100 p-1">
+          {(["signin", "signup"] as const).map((value) => (
+            <button
+              className={cn(
+                "rounded px-3 py-2 text-sm font-black",
+                mode === value
+                  ? "bg-white text-stone-950 shadow-sm"
+                  : "text-stone-500",
+              )}
+              key={value}
+              onClick={() => {
+                setMode(value);
+                setError("");
+              }}
+              type="button"
+            >
+              {value === "signin" ? "Sign in" : "Create"}
+            </button>
+          ))}
+        </div>
+
+        {mode === "signup" ? (
+          <label className="mt-4 grid grid-cols-[20px_1fr] items-center gap-2 rounded-md border border-black/10 bg-stone-50 px-3 py-3">
+            <User size={18} />
+            <input
+              className="min-w-0 bg-transparent text-sm font-bold outline-none"
+              autoComplete="name"
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="Display name"
+              value={displayName}
+            />
+          </label>
+        ) : null}
+
+        <label className="mt-3 grid grid-cols-[20px_1fr] items-center gap-2 rounded-md border border-black/10 bg-stone-50 px-3 py-3">
           <Mail size={18} />
           <input
             className="min-w-0 bg-transparent text-sm font-bold outline-none"
@@ -53,16 +119,49 @@ export function LoginView() {
             value={email}
           />
         </label>
+
+        <label className="mt-3 grid grid-cols-[20px_1fr] items-center gap-2 rounded-md border border-black/10 bg-stone-50 px-3 py-3">
+          <Lock size={18} />
+          <input
+            className="min-w-0 bg-transparent text-sm font-bold outline-none"
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            minLength={6}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password (min 6 characters)"
+            required
+            type="password"
+            value={password}
+          />
+        </label>
+
         <button
           className="mt-4 h-12 w-full rounded-md bg-stone-950 text-sm font-black uppercase tracking-wide text-white disabled:bg-stone-300"
           disabled={submitting}
           type="submit"
         >
-          {submitting ? "Sending" : "Send magic link"}
+          {submitting
+            ? "Working…"
+            : mode === "signin"
+              ? "Sign in"
+              : "Create account"}
         </button>
-        {message ? (
-          <p className="mt-3 text-sm font-bold text-stone-600">{message}</p>
+
+        {error ? (
+          <p className="mt-3 text-sm font-bold text-red-700">{error}</p>
         ) : null}
+
+        <button
+          className="mt-4 w-full text-center text-sm font-bold text-stone-500"
+          onClick={() => {
+            setMode(mode === "signin" ? "signup" : "signin");
+            setError("");
+          }}
+          type="button"
+        >
+          {mode === "signin"
+            ? "Need an account? Create one"
+            : "Already have an account? Sign in"}
+        </button>
       </form>
     </div>
   );
