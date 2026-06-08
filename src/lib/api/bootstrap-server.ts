@@ -77,6 +77,7 @@ type TeamSquadMemberRow = {
   position: string | null;
   shirt_number: number | null;
   team_id: string;
+  pre_wc_stats: TeamSquadMember["preWcStats"] | null;
 };
 
 type MatchRow = {
@@ -295,6 +296,7 @@ function mapSquadMember(row: TeamSquadMemberRow): TeamSquadMember {
     position: row.position ?? undefined,
     shirtNumber: row.shirt_number ?? undefined,
     teamId: row.team_id,
+    preWcStats: row.pre_wc_stats ?? undefined,
   };
 }
 
@@ -645,7 +647,7 @@ export async function buildSupabaseBootstrapData({
     selectAllPaged<TeamSquadMemberRow>((from, to) =>
       supabase
         .from("team_squad_members")
-        .select("team_id,player_id,shirt_number,position,active")
+        .select("team_id,player_id,shirt_number,position,active,pre_wc_stats")
         .range(from, to),
     ),
     selectMany<MatchRow>(

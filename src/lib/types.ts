@@ -49,12 +49,23 @@ export type Player = {
   position?: string;
 };
 
+export type PlayerPreWcStats = {
+  games: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellow: number;
+  red: number;
+  saves: number;
+};
+
 export type TeamSquadMember = {
   active: boolean;
   playerId: string;
   position?: string;
   shirtNumber?: number;
   teamId: string;
+  preWcStats?: PlayerPreWcStats;
 };
 
 export type Match = {
