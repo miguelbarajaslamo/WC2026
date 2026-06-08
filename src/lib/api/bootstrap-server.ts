@@ -535,6 +535,36 @@ async function selectMany<T>(
   return data ?? [];
 }
 
+// Supabase caps a single query at 1000 rows, so tables that can exceed that
+// (players, squads, bonus options, in-tournament events/stats) must be paged
+// or they silently truncate — e.g. dropping every top-scorer pick option.
+async function selectAllPaged<T>(
+  buildQuery: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+) {
+  const pageSize = 1000;
+  const all: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = data ?? [];
+    all.push(...rows);
+
+    if (rows.length < pageSize) {
+      break;
+    }
+  }
+
+  return all;
+}
+
 export async function buildSupabaseBootstrapData({
   supabase,
   userId,
@@ -599,15 +629,17 @@ export async function buildSupabaseBootstrapData({
         .from("teams")
         .select("id,name,short_name,iso2,group_name,flag_url"),
     ),
-    selectMany<PlayerRow>(
+    selectAllPaged<PlayerRow>((from, to) =>
       supabase
         .from("players")
-        .select("id,name,photo_url,nationality,position"),
+        .select("id,name,photo_url,nationality,position")
+        .range(from, to),
     ),
-    selectMany<TeamSquadMemberRow>(
+    selectAllPaged<TeamSquadMemberRow>((from, to) =>
       supabase
         .from("team_squad_members")
-        .select("team_id,player_id,shirt_number,position,active"),
+        .select("team_id,player_id,shirt_number,position,active")
+        .range(from, to),
     ),
     selectMany<MatchRow>(
       supabase
@@ -616,12 +648,13 @@ export async function buildSupabaseBootstrapData({
           "id,api_football_fixture_id,home_team_id,away_team_id,stage,group_name,venue,city,kickoff_at,prediction_lock_at,status,provider_status_code,elapsed_minutes,home_score,away_score,winner,last_synced_at",
         ),
     ),
-    selectMany<MatchEventRow>(
+    selectAllPaged<MatchEventRow>((from, to) =>
       supabase
         .from("match_events")
         .select(
           "id,match_id,elapsed_minutes,stoppage_minutes,team_id,player_name,assist_name,event_type,detail",
-        ),
+        )
+        .range(from, to),
     ),
     selectMany<PredictionRow>(
       supabase
@@ -631,19 +664,21 @@ export async function buildSupabaseBootstrapData({
         )
         .eq("pool_id", pool.id),
     ),
-    selectMany<MatchPlayerStatRow>(
+    selectAllPaged<MatchPlayerStatRow>((from, to) =>
       supabase
         .from("match_player_stats")
         .select(
           "match_id,team_id,player_id,player_name,minutes,position,goals,assists,yellow_cards,red_cards,saves,clean_sheets,rating,updated_at",
-        ),
+        )
+        .range(from, to),
     ),
-    selectMany<TournamentPlayerStatSnapshotRow>(
+    selectAllPaged<TournamentPlayerStatSnapshotRow>((from, to) =>
       supabase
         .from("tournament_player_stat_snapshots")
         .select(
           "player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at",
-        ),
+        )
+        .range(from, to),
     ),
     selectMany<StandingRowRecord>(
       supabase
@@ -660,11 +695,12 @@ export async function buildSupabaseBootstrapData({
         .eq("pool_id", pool.id)
         .eq("scoring_mode", pool.scoringMode),
     ),
-    selectMany<BonusPickOptionRow>(
+    selectAllPaged<BonusPickOptionRow>((from, to) =>
       supabase
         .from("bonus_pick_options")
         .select("id,type,label,team_id,player_id,player_name")
-        .eq("active", true),
+        .eq("active", true)
+        .range(from, to),
     ),
     selectMany<BonusPickRow>(
       supabase

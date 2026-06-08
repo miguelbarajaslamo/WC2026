@@ -87,7 +87,7 @@ function BonusPickRow({
   const normalizedQuery = normalizeText(query);
   const filtered = (() => {
     if (!normalizedQuery) {
-      return options.slice(0, 100);
+      return [];
     }
     return options
       .map((option) => ({ option, label: normalizeText(option.label) }))
@@ -220,7 +220,7 @@ function BonusPickRow({
             <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-black/10 bg-white py-1 shadow-xl">
               {filtered.length === 0 ? (
                 <li className="px-3 py-2 text-sm font-bold text-stone-400">
-                  No matches
+                  {normalizedQuery ? "No matches" : "Start typing to search…"}
                 </li>
               ) : (
                 filtered.map((option) => (
