@@ -58,7 +58,11 @@ async function createPool(request: Request) {
 
   const { data: pool, error: poolError } = await admin
     .from("pools")
-    .insert({ name: poolName, prize_note: prizeNote?.trim() || null })
+    .insert({
+      created_by: user.id,
+      name: poolName,
+      prize_note: prizeNote?.trim() || null,
+    })
     .select("id")
     .single();
 

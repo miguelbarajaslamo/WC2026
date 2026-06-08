@@ -46,6 +46,7 @@ type PoolRow = {
 
 type ProfileRow = {
   avatar_color: string;
+  avatar_url: string | null;
   display_name: string;
   id: string;
   notification_deadlines: boolean | null;
@@ -256,6 +257,7 @@ function mapPool(row: PoolRow): Pool {
 function mapProfile(row: ProfileRow): Profile {
   return {
     avatarColor: row.avatar_color,
+    avatarUrl: row.avatar_url ?? undefined,
     displayName: row.display_name,
     id: row.id,
     notificationDeadlines: row.notification_deadlines ?? true,
@@ -497,6 +499,7 @@ function buildLeaderboard({
 
       return {
         avatarColor: profile?.avatarColor ?? "#064e3b",
+        avatarUrl: profile?.avatarUrl,
         displayName: profile?.displayName ?? "Player",
         exactScores: matchScores.filter((snapshot) => snapshot.reason === "exact_score").length,
         movement: 0,
@@ -567,9 +570,11 @@ async function selectAllPaged<T>(
 
 export async function buildSupabaseBootstrapData({
   supabase,
+  userEmail,
   userId,
 }: {
   supabase: SupabaseClient;
+  userEmail?: string;
   userId: string;
 }): Promise<BootstrapData> {
   const { data: currentMembership, error: membershipError } = await supabase
@@ -740,7 +745,7 @@ export async function buildSupabaseBootstrapData({
     supabase
       .from("profiles")
       .select(
-        "id,display_name,avatar_color,notification_deadlines,notification_live_scores",
+        "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores",
       )
       .in("id", members.map((member) => member.userId)),
   );
@@ -786,7 +791,10 @@ export async function buildSupabaseBootstrapData({
       userId: snapshot.user_id,
     })),
     currentMemberRole: currentMembership.role,
+    currentUserEmail: userEmail,
     currentUserId: userId,
+    currentUserIsSystemAdmin:
+      userEmail?.toLowerCase() === "miguelbarajas@live.se",
     adminOverrides: adminOverrides.map(mapAdminOverride),
     events: mappedEvents,
     generatedAt: new Date().toISOString(),

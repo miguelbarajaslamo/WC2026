@@ -4,6 +4,7 @@ import {
   buildMatchScoreRows,
   type BonusWinner,
 } from "@/lib/admin/recalculation";
+import { isSystemAdminUser } from "@/lib/admin/access";
 import { determineResult } from "@/lib/scoring/scoring";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -133,6 +134,16 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  if (!isSystemAdminUser(user)) {
+    return NextResponse.json(
+      {
+        error:
+          "Match, event, and stat overrides affect global tournament data and are restricted to Miguel.",
+      },
+      { status: 403 },
+    );
   }
 
   const { data: member } = await supabase

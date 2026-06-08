@@ -80,7 +80,12 @@ export function MemberDetailView({ userId }: { userId: string }) {
     <div className="space-y-4">
       <section className="rounded-lg bg-[#022c22] p-4 text-white">
         <div className="flex items-center gap-3">
-          <Avatar color={profile.avatarColor} name={profile.displayName} size="lg" />
+          <Avatar
+            color={profile.avatarColor}
+            imageUrl={profile.avatarUrl}
+            name={profile.displayName}
+            size="lg"
+          />
           <div>
             <h2 className="text-2xl font-black">{profile.displayName}</h2>
             <p className="text-sm font-bold text-white/70">

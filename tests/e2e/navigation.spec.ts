@@ -11,6 +11,10 @@ test("main mobile routes render", async ({ page }) => {
 
 test("picks can be made inline from zero-zero", async ({ page }) => {
   await page.goto("/picks", { waitUntil: "domcontentloaded" });
+  test.skip(
+    await page.getByRole("heading", { name: "Sign in" }).isVisible(),
+    "Auth proxy redirected to login; inline picks need an authenticated pool session.",
+  );
   await expect(page.getByRole("button", { name: /Missing/ }).first()).toBeVisible();
   await expect(page.getByText("0-0").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Save pick" }).first()).toBeVisible();

@@ -24,7 +24,11 @@ export async function GET() {
 
   try {
     return NextResponse.json(
-      await buildSupabaseBootstrapData({ supabase, userId: user.id }),
+      await buildSupabaseBootstrapData({
+        supabase,
+        userEmail: user.email,
+        userId: user.id,
+      }),
     );
   } catch (error) {
     if (!(error instanceof BootstrapAccessError)) {

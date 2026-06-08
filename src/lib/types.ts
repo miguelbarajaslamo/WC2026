@@ -112,6 +112,7 @@ export type Profile = {
   id: string;
   displayName: string;
   avatarColor: string;
+  avatarUrl?: string;
   notificationDeadlines: boolean;
   notificationLiveScores: boolean;
 };
@@ -137,6 +138,7 @@ export type LeaderboardRow = {
   rank: number;
   displayName: string;
   avatarColor: string;
+  avatarUrl?: string;
   points: number;
   todayPoints: number;
   movement: number;
@@ -261,6 +263,8 @@ export type BootstrapData = {
   authMode: "authenticated" | "demo";
   generatedAt: string;
   currentUserId: string;
+  currentUserEmail?: string;
+  currentUserIsSystemAdmin: boolean;
   currentMemberRole: "admin" | "player";
   pool: Pool;
   profiles: Profile[];

@@ -46,7 +46,11 @@ export function LeaderboardView() {
             key={row.userId}
           >
             <span className="font-mono text-lg font-black">{row.rank}</span>
-            <Avatar color={row.avatarColor} name={row.displayName} />
+            <Avatar
+              color={row.avatarColor}
+              imageUrl={row.avatarUrl}
+              name={row.displayName}
+            />
             <div className="min-w-0">
               <p className="truncate font-black">{row.displayName}</p>
               <p className="text-xs font-bold text-stone-500">

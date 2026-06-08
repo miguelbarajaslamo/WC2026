@@ -171,7 +171,11 @@ export function MatchDetailView({
                   className="grid grid-cols-[40px_1fr_auto_auto] items-center gap-3"
                   key={prediction.id}
                 >
-                  <Avatar color={profile.avatarColor} name={profile.displayName} />
+                  <Avatar
+                    color={profile.avatarColor}
+                    imageUrl={profile.avatarUrl}
+                    name={profile.displayName}
+                  />
                   <span className="font-bold">{profile.displayName}</span>
                   <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-black uppercase text-emerald-950">
                     {resultLabel}

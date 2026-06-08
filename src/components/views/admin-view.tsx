@@ -1,22 +1,32 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  Check,
   ClipboardList,
+  Copy,
   Goal,
   KeyRound,
+  PlusCircle,
   RotateCw,
   Save,
   Shield,
+  Ticket,
   Trash2,
+  UserMinus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { Flag } from "@/components/ui/flag";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
-import { getMatchEvents, getTeam, getVisibleMatches } from "@/lib/data/selectors";
+import {
+  getMatchEvents,
+  getProfile,
+  getTeam,
+  getVisibleMatches,
+} from "@/lib/data/selectors";
 import { formatMatchTiming } from "@/lib/time";
 import { specialLabels } from "@/lib/specials";
 import type { BonusPickType, EventType, MatchStatus } from "@/lib/types";
@@ -60,6 +70,16 @@ type BonusWinnerFormState = {
   optionId: string;
   slot: string;
   type: BonusPickType;
+};
+
+type InviteRow = {
+  code: string;
+  created_at: string;
+  expires_at: string | null;
+  id: string;
+  max_uses: number | null;
+  revoked_at: string | null;
+  use_count: number;
 };
 
 const matchStatuses: MatchStatus[] = [
@@ -198,9 +218,28 @@ export function AdminView() {
   });
   const [reason, setReason] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "error" | "ok" } | null>(
     null,
   );
+  const invitesQuery = useQuery({
+    enabled: Boolean(data?.pool.id && data.currentMemberRole === "admin"),
+    queryFn: async () => {
+      const poolId = data?.pool.id ?? "";
+      const response = await fetch(`/api/admin/invites?poolId=${poolId}`);
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        invites?: InviteRow[];
+      };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Could not load invites");
+      }
+
+      return body.invites ?? [];
+    },
+    queryKey: ["admin-invites", data?.pool.id],
+  });
 
   const matches = useMemo(() => (data ? getVisibleMatches(data) : []), [data]);
   const effectiveSelectedMatchId = selectedMatchId || matches[0]?.id || "";
@@ -331,6 +370,112 @@ export function AdminView() {
     }
   }
 
+  async function createInvite() {
+    setPendingAction("Create invite");
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/admin/invites", {
+        body: JSON.stringify({ poolId: bootstrap.pool.id }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Could not create invite");
+      }
+
+      setNotice({ text: "Invite created.", tone: "ok" });
+      await invitesQuery.refetch();
+    } catch (actionError) {
+      setNotice({
+        text:
+          actionError instanceof Error
+            ? actionError.message
+            : "Could not create invite.",
+        tone: "error",
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function setInviteRevoked(inviteId: string, revoked: boolean) {
+    setPendingAction("Update invite");
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/admin/invites", {
+        body: JSON.stringify({ inviteId, poolId: bootstrap.pool.id, revoked }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Could not update invite");
+      }
+
+      setNotice({ text: revoked ? "Invite revoked." : "Invite reactivated.", tone: "ok" });
+      await invitesQuery.refetch();
+    } catch (actionError) {
+      setNotice({
+        text:
+          actionError instanceof Error
+            ? actionError.message
+            : "Could not update invite.",
+        tone: "error",
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function copyInvite(invite: InviteRow) {
+    const url = `${window.location.origin}/invite/${invite.code}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedInviteId(invite.id);
+    window.setTimeout(() => setCopiedInviteId(null), 2000);
+  }
+
+  async function removeMember(userId: string) {
+    const profile = getProfile(bootstrap, userId);
+
+    if (!window.confirm(`Remove ${profile.displayName} from this pool?`)) {
+      return;
+    }
+
+    setPendingAction("Remove member");
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/admin/members", {
+        body: JSON.stringify({ poolId: bootstrap.pool.id, userId }),
+        headers: { "Content-Type": "application/json" },
+        method: "DELETE",
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Could not remove member");
+      }
+
+      setNotice({ text: `${profile.displayName} removed from the pool.`, tone: "ok" });
+      await queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+    } catch (actionError) {
+      setNotice({
+        text:
+          actionError instanceof Error
+            ? actionError.message
+            : "Could not remove member.",
+        tone: "error",
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-lg bg-stone-950 p-4 text-white">
@@ -356,6 +501,112 @@ export function AdminView() {
         </div>
       ) : null}
 
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <PanelTitle icon={<Ticket size={19} />} title="Pool invites" />
+          <button
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-950 px-3 text-xs font-black uppercase text-white disabled:bg-stone-300 disabled:text-stone-500"
+            disabled={pendingAction !== null}
+            onClick={() => void createInvite()}
+            type="button"
+          >
+            <PlusCircle size={15} />
+            New
+          </button>
+        </div>
+        <div className="mt-3 space-y-2">
+          {invitesQuery.isLoading ? (
+            <p className="rounded-md bg-stone-50 p-3 text-sm font-bold text-stone-500">
+              Loading invites...
+            </p>
+          ) : invitesQuery.data && invitesQuery.data.length > 0 ? (
+            invitesQuery.data.map((invite) => {
+              const revoked = Boolean(invite.revoked_at);
+              const copied = copiedInviteId === invite.id;
+
+              return (
+                <div
+                  className="rounded-md border border-black/10 bg-stone-50 p-3"
+                  key={invite.id}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-xl font-black tracking-widest">
+                        {invite.code}
+                      </p>
+                      <p className="text-xs font-bold text-stone-500">
+                        Used {invite.use_count}
+                        {invite.max_uses ? `/${invite.max_uses}` : ""} ·{" "}
+                        {revoked ? "Revoked" : "Active"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        className="grid size-9 place-items-center rounded-md bg-white text-stone-950 ring-1 ring-black/10"
+                        onClick={() => void copyInvite(invite)}
+                        type="button"
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                      <button
+                        className={
+                          revoked
+                            ? "rounded-md bg-emerald-100 px-3 py-2 text-xs font-black uppercase text-emerald-900"
+                            : "rounded-md bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-800"
+                        }
+                        disabled={pendingAction !== null}
+                        onClick={() => void setInviteRevoked(invite.id, !revoked)}
+                        type="button"
+                      >
+                        {revoked ? "Reactivate" : "Revoke"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="rounded-md bg-stone-50 p-3 text-sm font-bold text-stone-500">
+              No invites yet. Create one to share the pool.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-black/10 bg-white p-4">
+        <PanelTitle icon={<UserMinus size={19} />} title="Pool members" />
+        <div className="mt-3 space-y-2">
+          {bootstrap.members.map((member) => {
+            const profile = getProfile(bootstrap, member.userId);
+            const isCurrentUser = member.userId === bootstrap.currentUserId;
+
+            return (
+              <div
+                className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border border-black/10 bg-stone-50 p-3"
+                key={member.userId}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-black">{profile.displayName}</p>
+                  <p className="text-xs font-bold uppercase text-stone-500">
+                    {member.role}
+                  </p>
+                </div>
+                <button
+                  className="rounded-md bg-red-50 px-3 py-2 text-xs font-black uppercase text-red-800 disabled:bg-stone-100 disabled:text-stone-400"
+                  disabled={isCurrentUser || pendingAction !== null}
+                  onClick={() => void removeMember(member.userId)}
+                  type="button"
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {bootstrap.currentUserIsSystemAdmin ? (
+        <>
       <section className="rounded-lg border border-black/10 bg-white p-4">
         <div className="flex items-center gap-2">
           <KeyRound size={19} />
@@ -916,6 +1167,18 @@ export function AdminView() {
           />
         </div>
       </section>
+        </>
+      ) : (
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <h2 className="font-black text-stone-950">Global overrides locked</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-stone-700">
+            Match score, event, stat, and bonus-winner overrides change shared
+            tournament data for every pool. Those tools are restricted to
+            miguelbarajas@live.se. Pool invite and member tools above still work
+            for pool admins.
+          </p>
+        </section>
+      )}
 
       <section className="rounded-lg border border-black/10 bg-white p-4">
         <PanelTitle icon={<Activity size={19} />} title="Sync status" />

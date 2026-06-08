@@ -56,6 +56,7 @@ alter type public.bonus_pick_type add value if not exists 'most_cards_country';
 
 create table if not exists public.pools (
   id uuid primary key default gen_random_uuid(),
+  created_by uuid references public.profiles(id) on delete set null,
   name text not null,
   prize_note text,
   scoring_mode public.scoring_mode not null default 'traditional',
@@ -68,10 +69,14 @@ create table if not exists public.pools (
 alter table public.pools
   add column if not exists bonus_lock_at timestamptz;
 
+alter table public.pools
+  add column if not exists created_by uuid references public.profiles(id) on delete set null;
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
   avatar_color text not null default '#064e3b',
+  avatar_url text,
   notification_deadlines boolean not null default true,
   notification_live_scores boolean not null default false,
   created_at timestamptz not null default now(),
@@ -759,3 +764,19 @@ alter table public.profiles
   add column if not exists notification_deadlines boolean not null default true;
 alter table public.profiles
   add column if not exists notification_live_scores boolean not null default false;
+alter table public.profiles
+  add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'profile-avatars',
+  'profile-avatars',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;

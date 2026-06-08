@@ -61,7 +61,11 @@ export function PoolView() {
                 href={`/members/${member.userId}`}
                 key={member.userId}
               >
-                <Avatar color={profile.avatarColor} name={profile.displayName} />
+                <Avatar
+                  color={profile.avatarColor}
+                  imageUrl={profile.avatarUrl}
+                  name={profile.displayName}
+                />
                 <span className="font-bold">{profile.displayName}</span>
                 <span className="rounded bg-stone-100 px-2 py-1 text-[10px] font-black uppercase text-stone-500">
                   {member.role}
