@@ -16,18 +16,51 @@ const RESULT_LABEL: Record<TeamFormEntry["result"], string> = {
   L: "Loss",
 };
 
+function summary(entry: TeamFormEntry) {
+  return `${RESULT_LABEL[entry.result]} ${entry.gf}-${entry.ga} vs ${entry.opponent}`;
+}
+
 export function FormSquares({
   className,
   form,
+  interactive = true,
+  size = "md",
 }: {
   className?: string;
   form?: TeamFormEntry[];
+  // interactive = tappable squares with an opponent/score popup (team page).
+  // non-interactive = plain coloured squares for dense cards (safe inside links).
+  interactive?: boolean;
+  size?: "sm" | "md";
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   if (!form || form.length === 0) {
-    return (
+    return interactive ? (
       <span className="text-[11px] font-bold text-white/50">No recent form</span>
+    ) : null;
+  }
+
+  const box =
+    size === "sm" ? "size-4 text-[8px]" : "size-6 text-[10px]";
+
+  if (!interactive) {
+    return (
+      <div className={cn("flex items-center gap-0.5", className)}>
+        {form.map((entry, index) => (
+          <span
+            className={cn(
+              "grid shrink-0 place-items-center rounded font-black text-white",
+              box,
+              RESULT_STYLE[entry.result],
+            )}
+            key={`${entry.date}-${index}`}
+            title={summary(entry)}
+          >
+            {entry.result}
+          </span>
+        ))}
+      </div>
     );
   }
 
@@ -36,9 +69,10 @@ export function FormSquares({
       {form.map((entry, index) => (
         <div className="relative" key={`${entry.date}-${index}`}>
           <button
-            aria-label={`${RESULT_LABEL[entry.result]} ${entry.gf}-${entry.ga} vs ${entry.opponent}`}
+            aria-label={summary(entry)}
             className={cn(
-              "grid size-6 place-items-center rounded text-[10px] font-black text-white",
+              "grid place-items-center rounded font-black text-white",
+              box,
               RESULT_STYLE[entry.result],
             )}
             onClick={() => setOpenIndex(openIndex === index ? null : index)}

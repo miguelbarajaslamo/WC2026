@@ -5,11 +5,17 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { Flag } from "@/components/ui/flag";
+import { FormSquares } from "@/components/app/form-squares";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
 import { scoreResult } from "@/lib/predictions";
 import { formatMatchTiming } from "@/lib/time";
-import type { BootstrapData, Match, Prediction } from "@/lib/types";
+import type {
+  BootstrapData,
+  Match,
+  Prediction,
+  TeamFormEntry,
+} from "@/lib/types";
 
 export function InlinePredictionPicker({
   compact = false,
@@ -142,38 +148,27 @@ export function InlinePredictionPicker({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_72px] gap-3">
-        <div className="space-y-2">
-          <ScoreLine
-            disabled={locked}
-            iso2={home.iso2}
-            label={home.shortName}
-            onChange={setHomeScore}
-            side="home"
-            teamName={home.name}
-            value={homeScore}
-          />
-          <ScoreLine
-            disabled={locked}
-            iso2={away.iso2}
-            label={away.shortName}
-            onChange={setAwayScore}
-            side="away"
-            teamName={away.name}
-            value={awayScore}
-          />
-        </div>
-        <div className="grid place-items-center rounded-md bg-stone-100 px-2 text-center">
-          <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
-            Pick
-          </p>
-          <p className="font-mono text-lg font-black">
-            {homeScore}-{awayScore}
-          </p>
-          <p className="text-[10px] font-black uppercase text-stone-400">
-            {locked ? "Locked" : "Score"}
-          </p>
-        </div>
+      <div className="mt-4 space-y-2">
+        <ScoreLine
+          disabled={locked}
+          form={home.recentForm}
+          iso2={home.iso2}
+          label={home.shortName}
+          onChange={setHomeScore}
+          side="home"
+          teamName={home.name}
+          value={homeScore}
+        />
+        <ScoreLine
+          disabled={locked}
+          form={away.recentForm}
+          iso2={away.iso2}
+          label={away.shortName}
+          onChange={setAwayScore}
+          side="away"
+          teamName={away.name}
+          value={awayScore}
+        />
       </div>
 
       <button
@@ -190,6 +185,7 @@ export function InlinePredictionPicker({
 
 function ScoreLine({
   disabled,
+  form,
   iso2,
   label,
   onChange,
@@ -198,6 +194,7 @@ function ScoreLine({
   value,
 }: {
   disabled: boolean;
+  form?: TeamFormEntry[];
   iso2?: string;
   label: string;
   onChange: (value: number) => void;
@@ -207,9 +204,10 @@ function ScoreLine({
 }) {
   return (
     <div className="grid grid-cols-[1fr_104px] items-center gap-2">
-      <span className="flex min-w-0 items-center gap-2 text-sm font-black">
+      <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
         <Flag code={iso2} label={teamName} />
         <span className="truncate">{label}</span>
+        <FormSquares className="ml-0.5" form={form} interactive={false} size="sm" />
       </span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
         <button

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Flag } from "@/components/ui/flag";
+import { FormSquares } from "@/components/app/form-squares";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatMinute, predictionLabel, scorersSummary, scoreText } from "@/lib/format";
 import {
@@ -24,7 +25,10 @@ function TeamLine({
   return (
     <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2">
       <Flag code={team.iso2} label={team.name} />
-      <span className="truncate text-sm font-black">{team.shortName}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-sm font-black">{team.shortName}</span>
+        <FormSquares form={team.recentForm} interactive={false} size="sm" />
+      </span>
       <span className="font-mono text-base font-black tabular-nums">
         {score ?? "-"}
       </span>
