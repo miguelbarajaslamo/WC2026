@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Countdown } from "@/components/app/countdown";
 import { Section } from "@/components/ui/section";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
@@ -8,13 +9,18 @@ import { MatchRow } from "@/components/app/match-row";
 import { TournamentSpecialsBanner } from "@/components/app/tournament-specials-banner";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import {
-  getMissingUnlockedMatches,
+  getMissingPicksWithinDays,
   getVisibleMatches,
 } from "@/lib/data/selectors";
+import { DEFAULT_WARNING_DAYS, getWarningDays } from "@/lib/preferences";
 import { getLocalTimeZone, getNextLockMatch } from "@/lib/time";
 
 export function TodayView() {
   const { data, error, isLoading, isFetching } = useBootstrap();
+  const [warningDays, setWarningDays] = useState(DEFAULT_WARNING_DAYS);
+  // Read the per-device preference after mount (avoids SSR/hydration mismatch).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setWarningDays(getWarningDays()), []);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading tournament data" />;
@@ -30,7 +36,7 @@ export function TodayView() {
   );
   const upcoming = matches.filter((match) => match.status === "scheduled").slice(0, 4);
   const finished = matches.filter((match) => match.status === "finished").slice(0, 3);
-  const missing = getMissingUnlockedMatches(data).slice(0, 3);
+  const missing = getMissingPicksWithinDays(data, warningDays);
   const nextLock = getNextLockMatch(data);
   const currentRank = data.leaderboard.find(
     (row) => row.userId === data.currentUserId,
@@ -75,8 +81,8 @@ export function TodayView() {
             <div>
               <h2 className="font-black text-stone-950">Missing picks soon</h2>
               <p className="mt-1 text-sm font-bold text-stone-600">
-                {missing.length} open match{missing.length === 1 ? "" : "es"} need a
-                pick.
+                {missing.length} match{missing.length === 1 ? "" : "es"} in the next{" "}
+                {warningDays} day{warningDays === 1 ? "" : "s"} need a pick.
               </p>
             </div>
             <Link

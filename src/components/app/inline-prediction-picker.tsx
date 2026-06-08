@@ -46,7 +46,8 @@ export function InlinePredictionPicker({
   const [lastSavedResult, setLastSavedResult] = useState<PredictionResult | "">(
     existing?.predictedResult ?? "",
   );
-  const [message, setMessage] = useState(existing ? "Saved" : "Not saved");
+  const [hasSaved, setHasSaved] = useState(existing != null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
   const locked = isMatchLocked(match);
@@ -67,7 +68,7 @@ export function InlinePredictionPicker({
     }
 
     setSaving(true);
-    setMessage("Saving");
+    setSaveFailed(false);
     const previousData = queryClient.getQueryData<BootstrapData>(bootstrapQueryKey);
 
     const optimisticPrediction: Prediction = {
@@ -110,25 +111,24 @@ export function InlinePredictionPicker({
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
         if (previousData) {
           queryClient.setQueryData(bootstrapQueryKey, previousData);
         }
-        setMessage(body.error ?? "Save failed");
+        setSaveFailed(true);
         return;
       }
 
       setLastSavedScore(`${homeScore}-${awayScore}`);
       setLastSavedResult(result);
-      setMessage("Saved");
+      setHasSaved(true);
       void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
     } catch {
       if (previousData) {
         queryClient.setQueryData(bootstrapQueryKey, previousData);
       }
-      setMessage("Save failed");
+      setSaveFailed(true);
     } finally {
       setSaving(false);
     }
@@ -156,12 +156,23 @@ export function InlinePredictionPicker({
         <span
           className={cn(
             "rounded px-2 py-1 text-xs font-black uppercase",
-            dirty && !locked && "bg-amber-200 text-stone-950",
-            !dirty && !locked && "bg-emerald-100 text-emerald-950",
             locked && "bg-stone-950 text-white",
+            !locked && dirty && "bg-amber-200 text-stone-950",
+            !locked && !dirty && hasSaved && "bg-emerald-100 text-emerald-950",
+            !locked && !dirty && !hasSaved && "bg-red-100 text-red-700",
           )}
         >
-          {locked ? "Locked" : dirty ? "Unsaved" : message}
+          {locked
+            ? "Locked"
+            : saving
+              ? "Saving"
+              : saveFailed
+                ? "Failed"
+                : dirty
+                  ? "Unsaved"
+                  : hasSaved
+                    ? "Saved"
+                    : "Missing"}
         </span>
       </div>
 
@@ -226,7 +237,7 @@ export function InlinePredictionPicker({
         onClick={savePrediction}
         type="button"
       >
-        {saving ? "Saving" : dirty ? "Save pick" : "Saved"}
+        {saving ? "Saving" : dirty ? "Save pick" : hasSaved ? "Saved" : "Save pick"}
       </button>
     </div>
   );

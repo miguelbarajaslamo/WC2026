@@ -69,3 +69,12 @@ export function getMissingUnlockedMatches(data: BootstrapData) {
     return !userPrediction && !isMatchLocked(match);
   });
 }
+
+// Unpicked, unlocked matches kicking off within the next `days` days — used for
+// the "missing picks soon" warning so it only flags imminent matches.
+export function getMissingPicksWithinDays(data: BootstrapData, days: number) {
+  const cutoff = Date.now() + days * 24 * 60 * 60 * 1000;
+  return getMissingUnlockedMatches(data).filter(
+    (match) => parseISO(match.kickoffAt).getTime() <= cutoff,
+  );
+}

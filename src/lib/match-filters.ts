@@ -7,7 +7,7 @@ import {
 import type { BootstrapData, Match } from "@/lib/types";
 
 export type PicksFilter = "all" | "locked" | "missing" | "open";
-export type FixturesFilter = "all" | "finished" | "missing" | "upcoming";
+export type FixturesFilter = "finished" | "missing" | "upcoming";
 
 export function isMissingPick(data: BootstrapData, match: Match) {
   return !isMatchLocked(match) && !getUserPrediction(data, match.id);
@@ -35,13 +35,32 @@ export function filterPicksMatches(data: BootstrapData, filter: PicksFilter) {
   return matches;
 }
 
+function matchesFixturesFilter(
+  data: BootstrapData,
+  match: Match,
+  filter: FixturesFilter,
+  now: Date,
+) {
+  if (filter === "missing") {
+    return isMissingPick(data, match);
+  }
+  if (filter === "upcoming") {
+    return match.status === "scheduled" && parseISO(match.kickoffAt) > now;
+  }
+  if (filter === "finished") {
+    return match.status === "finished";
+  }
+  return true;
+}
+
 export function filterFixturesMatches({
   data,
-  filter,
+  filters,
   query,
 }: {
   data: BootstrapData;
-  filter: FixturesFilter;
+  // Empty = no filter (show all). Multiple = union (matches any).
+  filters: FixturesFilter[];
   query?: string;
 }) {
   const normalizedQuery = (query ?? "").trim().toLowerCase();
@@ -68,18 +87,10 @@ export function filterFixturesMatches({
       return false;
     }
 
-    if (filter === "missing") {
-      return isMissingPick(data, match);
+    if (filters.length === 0) {
+      return true;
     }
 
-    if (filter === "upcoming") {
-      return match.status === "scheduled" && parseISO(match.kickoffAt) > now;
-    }
-
-    if (filter === "finished") {
-      return match.status === "finished";
-    }
-
-    return true;
+    return filters.some((filter) => matchesFixturesFilter(data, match, filter, now));
   });
 }

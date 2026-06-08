@@ -19,7 +19,9 @@ export function GroupsView() {
 
   return (
     <div className="space-y-4">
-      {Object.entries(data.standings).map(([groupName, rows]) => (
+      {Object.entries(data.standings)
+        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+        .map(([groupName, rows]) => (
         <section
           className="overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm"
           key={groupName}

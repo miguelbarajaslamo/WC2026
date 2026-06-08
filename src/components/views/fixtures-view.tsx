@@ -15,15 +15,23 @@ import {
 export function FixturesView() {
   const { data, error, isLoading } = useBootstrap();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FixturesFilter>("all");
+  const [filters, setFilters] = useState<FixturesFilter[]>([]);
 
   const matches = useMemo(() => {
     if (!data) {
       return [];
     }
 
-    return filterFixturesMatches({ data, filter, query });
-  }, [data, filter, query]);
+    return filterFixturesMatches({ data, filters, query });
+  }, [data, filters, query]);
+
+  function toggleFilter(value: FixturesFilter) {
+    setFilters((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value],
+    );
+  }
 
   if (isLoading || !data) {
     return <LoadingState label="Loading fixtures" />;
@@ -45,28 +53,30 @@ export function FixturesView() {
             value={query}
           />
         </label>
-        <div className="mt-3 grid grid-cols-4 gap-1">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {([
-            ["all", "All"],
             ["missing", "Missing"],
             ["upcoming", "Upcoming"],
             ["finished", "Finished"],
-          ] as Array<[FixturesFilter, string]>).map(([value, label]) => (
-            <button
-              aria-pressed={filter === value}
-              className={cn(
-                "flex h-10 items-center justify-center rounded-md px-1 text-[10px] font-black uppercase leading-none tracking-tight",
-                filter === value
-                  ? "bg-stone-950 text-white"
-                  : "bg-stone-100 text-stone-600",
-              )}
-              key={value}
-              onClick={() => setFilter(value)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
+          ] as Array<[FixturesFilter, string]>).map(([value, label]) => {
+            const active = filters.includes(value);
+            return (
+              <button
+                aria-pressed={active}
+                className={cn(
+                  "flex h-10 items-center justify-center rounded-md text-xs font-black uppercase tracking-wide",
+                  active
+                    ? "bg-stone-950 text-white"
+                    : "bg-stone-100 text-stone-500",
+                )}
+                key={value}
+                onClick={() => toggleFilter(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

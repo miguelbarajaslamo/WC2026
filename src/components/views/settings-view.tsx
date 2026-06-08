@@ -1,8 +1,8 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Smartphone } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { Bell, CalendarClock, Smartphone } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { LogoutButton } from "@/components/app/logout-button";
@@ -10,6 +10,7 @@ import { NotificationOptIn } from "@/components/app/notification-opt-in";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { getProfile } from "@/lib/data/selectors";
+import { DEFAULT_WARNING_DAYS, getWarningDays, setWarningDays } from "@/lib/preferences";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getLocalTimeZone } from "@/lib/time";
 
@@ -24,6 +25,9 @@ export function SettingsView() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [warningDays, setWarningDaysState] = useState(DEFAULT_WARNING_DAYS);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setWarningDaysState(getWarningDays()), []);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading settings" />;
@@ -235,6 +239,34 @@ export function SettingsView() {
           </button>
         </form>
       </section>
+
+      <div className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-lg border border-black/10 bg-white p-4">
+        <span className="grid size-9 place-items-center rounded-md bg-stone-100 text-stone-600">
+          <CalendarClock size={20} />
+        </span>
+        <span>
+          <span className="block font-black">Pick reminder window</span>
+          <span className="text-sm font-bold text-stone-500">
+            Warn about unpicked matches kicking off within this many days.
+          </span>
+        </span>
+        <select
+          aria-label="Pick reminder window in days"
+          className="rounded-md border border-black/15 bg-white px-2 py-1 text-sm font-black"
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            setWarningDays(next);
+            setWarningDaysState(next);
+          }}
+          value={warningDays}
+        >
+          {[1, 2, 3, 5, 7].map((days) => (
+            <option key={days} value={days}>
+              {days} day{days === 1 ? "" : "s"}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <SettingRow
         body="Deadline reminders, match locks, full-time score updates."

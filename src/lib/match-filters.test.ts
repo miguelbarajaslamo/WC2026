@@ -76,11 +76,11 @@ describe("match filters", () => {
   });
 
   it("filters fixtures by upcoming and finished state", () => {
-    expect(filterFixturesMatches({ data, filter: "upcoming" }).map((item) => item.id)).toEqual([
+    expect(filterFixturesMatches({ data, filters: ["upcoming"] }).map((item) => item.id)).toEqual([
       "early-open",
       "late-open",
     ]);
-    expect(filterFixturesMatches({ data, filter: "finished" }).map((item) => item.id)).toEqual([
+    expect(filterFixturesMatches({ data, filters: ["finished"] }).map((item) => item.id)).toEqual([
       "finished",
     ]);
   });
