@@ -234,12 +234,14 @@ export function InlinePredictionPicker({
 
 function TeamFormRow({ team }: { team: Team }) {
   return (
-    <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
-      <Flag code={team.iso2} label={team.name} />
-      <span className="min-w-0 truncate" title={team.name}>
-        {team.name}
+    <span className="flex min-w-0 items-center justify-between gap-2 text-sm font-black">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Flag code={team.iso2} label={team.name} />
+        <span className="truncate" title={team.name}>
+          {team.name}
+        </span>
       </span>
-      <FormSquares className="ml-0.5 shrink-0" form={team.recentForm} size="md" />
+      <FormSquares className="shrink-0" form={team.recentForm} size="md" />
     </span>
   );
 }
@@ -299,12 +301,14 @@ function ScoreLine({
 }) {
   return (
     <div className="grid grid-cols-[1fr_104px] items-center gap-2">
-      <span className="flex min-w-0 items-center gap-1.5 text-sm font-black">
-        <Flag code={iso2} label={teamName} />
-        <span className="min-w-0 truncate" title={teamName}>
-          {teamName}
+      <span className="flex min-w-0 items-center justify-between gap-2 text-sm font-black">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Flag code={iso2} label={teamName} />
+          <span className="truncate" title={teamName}>
+            {teamName}
+          </span>
         </span>
-        <FormSquares className="ml-0.5 shrink-0" form={form} size="md" />
+        <FormSquares className="shrink-0" form={form} size="md" />
       </span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
         <button
