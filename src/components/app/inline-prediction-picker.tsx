@@ -4,6 +4,7 @@ import { Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
+import { Flag } from "@/components/ui/flag";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
 import { scoreResult } from "@/lib/predictions";
@@ -145,16 +146,20 @@ export function InlinePredictionPicker({
         <div className="space-y-2">
           <ScoreLine
             disabled={locked}
+            iso2={home.iso2}
             label={home.shortName}
             onChange={setHomeScore}
             side="home"
+            teamName={home.name}
             value={homeScore}
           />
           <ScoreLine
             disabled={locked}
+            iso2={away.iso2}
             label={away.shortName}
             onChange={setAwayScore}
             side="away"
+            teamName={away.name}
             value={awayScore}
           />
         </div>
@@ -185,20 +190,27 @@ export function InlinePredictionPicker({
 
 function ScoreLine({
   disabled,
+  iso2,
   label,
   onChange,
   side,
+  teamName,
   value,
 }: {
   disabled: boolean;
+  iso2?: string;
   label: string;
   onChange: (value: number) => void;
   side: "away" | "home";
+  teamName: string;
   value: number;
 }) {
   return (
     <div className="grid grid-cols-[1fr_104px] items-center gap-2">
-      <span className="truncate text-sm font-black">{label}</span>
+      <span className="flex min-w-0 items-center gap-2 text-sm font-black">
+        <Flag code={iso2} label={teamName} />
+        <span className="truncate">{label}</span>
+      </span>
       <div className="grid grid-cols-[30px_1fr_30px] overflow-hidden rounded-md border border-black/10 bg-stone-50">
         <button
           aria-label={`Decrease ${label} ${side} score`}
