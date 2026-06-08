@@ -71,8 +71,16 @@ function BonusPickRow({
   const [optionId, setOptionId] = useState(existing?.optionId ?? "");
   const existingOption = options.find((option) => option.id === existing?.optionId);
   const [query, setQuery] = useState(existingOption?.label ?? "");
+  const [open, setOpen] = useState(false);
   const [message, setMessage] = useState(existing ? "Saved" : "Missing");
   const dirty = optionId !== (existing?.optionId ?? "");
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const filtered = (
+    trimmedQuery
+      ? options.filter((option) => option.label.toLowerCase().includes(trimmedQuery))
+      : options
+  ).slice(0, 50);
 
   async function save() {
     const selectedOption = options.find((option) => option.id === optionId);
@@ -166,46 +174,59 @@ function BonusPickRow({
         </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_76px] gap-2">
-        <input
-          className="h-11 min-w-0 rounded-md border border-black/10 bg-stone-50 px-3 text-sm font-bold"
-          disabled={locked}
-          list={`bonus-options-${type}-${slot}`}
-          onChange={(event) => {
-            const nextQuery = event.target.value;
-            const nextOption = options.find((option) => option.label === nextQuery);
-            setQuery(nextQuery);
-            setOptionId(nextOption?.id ?? "");
-          }}
-          placeholder="Search and choose"
-          value={query}
-        />
-        <datalist id={`bonus-options-${type}-${slot}`}>
-          {options.map((option) => (
-            <option key={option.id} value={option.label} />
-          ))}
-        </datalist>
-        {/* Keep a native select fallback for keyboard users on browsers with weak datalist UI. */}
-        <select
-          className="h-11 min-w-0 rounded-md border border-black/10 bg-stone-50 px-3 text-sm font-bold"
-          disabled={locked}
-          onChange={(event) => {
-            const nextOption = options.find((option) => option.id === event.target.value);
-            setOptionId(event.target.value);
-            setQuery(nextOption?.label ?? "");
-          }}
-          value={optionId}
-          hidden
-        >
-          <option value="">Choose</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+      <div className="grid grid-cols-[1fr_76px] items-start gap-2">
+        <div className="relative">
+          <input
+            className="h-11 w-full min-w-0 rounded-md border border-black/10 bg-stone-50 px-3 text-sm font-bold outline-none focus:border-emerald-700"
+            disabled={locked}
+            onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+            onChange={(event) => {
+              const nextQuery = event.target.value;
+              setQuery(nextQuery);
+              setOpen(true);
+              const exact = options.find(
+                (option) => option.label.toLowerCase() === nextQuery.trim().toLowerCase(),
+              );
+              setOptionId(exact?.id ?? "");
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="Search by name…"
+            value={query}
+          />
+          {open && !locked ? (
+            <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-black/10 bg-white py-1 shadow-xl">
+              {filtered.length === 0 ? (
+                <li className="px-3 py-2 text-sm font-bold text-stone-400">
+                  No matches
+                </li>
+              ) : (
+                filtered.map((option) => (
+                  <li key={option.id}>
+                    <button
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-bold hover:bg-stone-100",
+                        option.id === optionId && "bg-emerald-50 text-emerald-950",
+                      )}
+                      // onMouseDown (not onClick) so selection fires before the
+                      // input's onBlur closes the list.
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setOptionId(option.id);
+                        setQuery(option.label);
+                        setOpen(false);
+                      }}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
         <button
-          className="rounded-md bg-stone-950 text-xs font-black uppercase text-white disabled:bg-stone-300 disabled:text-stone-500"
+          className="h-11 rounded-md bg-stone-950 text-xs font-black uppercase text-white disabled:bg-stone-300 disabled:text-stone-500"
           disabled={locked || !dirty || !optionId}
           onClick={save}
           type="button"
