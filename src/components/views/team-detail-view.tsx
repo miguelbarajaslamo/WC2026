@@ -48,8 +48,12 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
       {standings ? (
         <section className="grid grid-cols-4 gap-2">
           <Metric label="Played" value={standings.played} />
+          <Metric label="W" value={standings.won} />
+          <Metric label="D" value={standings.drawn} />
+          <Metric label="L" value={standings.lost} />
           <Metric label="GF" value={standings.goalsFor} />
           <Metric label="GA" value={standings.goalsAgainst} />
+          <Metric label="GD" value={standings.goalsFor - standings.goalsAgainst} />
           <Metric label="Pts" value={standings.points} />
         </section>
       ) : null}
