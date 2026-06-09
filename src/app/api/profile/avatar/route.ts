@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import sharp from "sharp";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const maxAvatarBytes = 2 * 1024 * 1024;
+// sharp is a native module, so this handler must run on the Node runtime.
+export const runtime = "nodejs";
 
-function extensionForType(type: string) {
-  if (type === "image/png") return "png";
-  if (type === "image/webp") return "webp";
-  return "jpg";
-}
+const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+// Generous input cap — phone photos are large and we downscale them anyway.
+const maxUploadBytes = 12 * 1024 * 1024;
+// Square output side. 512 stays crisp on retina while keeping files tiny.
+const avatarSize = 512;
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -35,19 +35,36 @@ export async function POST(request: Request) {
     );
   }
 
-  if (file.size > maxAvatarBytes) {
+  if (file.size > maxUploadBytes) {
     return NextResponse.json(
-      { error: "Avatar must be 2 MB or smaller." },
+      { error: "Image must be 12 MB or smaller." },
       { status: 400 },
     );
   }
 
-  const admin = createSupabaseAdminClient();
-  const path = `${user.id}/avatar-${Date.now()}.${extensionForType(file.type)}`;
-  const { error: uploadError } = await admin.storage
+  // Auto-orient from EXIF, center-crop to a square, downscale, and re-encode as
+  // WebP. This normalizes phone photos and keeps the stored file well under the
+  // bucket's size limit regardless of the original.
+  let webp: Buffer;
+  try {
+    webp = await sharp(Buffer.from(await file.arrayBuffer()))
+      .rotate()
+      .resize(avatarSize, avatarSize, { fit: "cover", position: "centre" })
+      .webp({ quality: 82 })
+      .toBuffer();
+  } catch {
+    return NextResponse.json(
+      { error: "Could not process that image. Try a different file." },
+      { status: 400 },
+    );
+  }
+
+  const path = `${user.id}/avatar-${Date.now()}.webp`;
+  const { error: uploadError } = await supabase.storage
     .from("profile-avatars")
-    .upload(path, file, {
-      contentType: file.type,
+    .upload(path, webp, {
+      cacheControl: "3600",
+      contentType: "image/webp",
       upsert: true,
     });
 
@@ -55,9 +72,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 });
   }
 
-  const { data } = admin.storage.from("profile-avatars").getPublicUrl(path);
+  const { data } = supabase.storage.from("profile-avatars").getPublicUrl(path);
   const avatarUrl = data.publicUrl;
-  const { error: profileError } = await admin
+  const { error: profileError } = await supabase
     .from("profiles")
     .update({
       avatar_url: avatarUrl,

@@ -201,7 +201,7 @@ export function SettingsView() {
       <section className="rounded-lg border border-black/10 bg-white p-4">
         <h2 className="font-black">Profile picture</h2>
         <p className="mt-1 text-sm font-bold text-stone-500">
-          JPG, PNG, or WebP. Max 2 MB.
+          JPG, PNG, or WebP. We crop and resize it for you.
         </p>
         <input
           accept="image/jpeg,image/png,image/webp"
