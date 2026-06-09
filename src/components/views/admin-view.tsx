@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { MemberAdminCard } from "@/components/views/member-admin-card";
 import { ScoringStagesCard } from "@/components/views/scoring-stages-card";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { Flag } from "@/components/ui/flag";
@@ -491,6 +492,8 @@ export function AdminView() {
       </section>
 
       <ScoringStagesCard data={bootstrap} />
+
+      <MemberAdminCard data={bootstrap} />
 
       {notice ? (
         <div

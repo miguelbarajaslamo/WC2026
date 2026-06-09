@@ -3,8 +3,20 @@
 import Link from "next/link";
 import { Flag } from "@/components/ui/flag";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { StatLegend } from "@/components/app/stat-legend";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { getTeam } from "@/lib/data/selectors";
+
+const GROUP_LEGEND: Array<[string, string]> = [
+  ["P", "Played"],
+  ["W", "Won"],
+  ["D", "Drawn"],
+  ["L", "Lost"],
+  ["GF", "Goals for"],
+  ["GA", "Goals against"],
+  ["Pts", "Points"],
+  ["Q", "Qualified"],
+];
 
 export function GroupsView() {
   const { data, error, isLoading } = useBootstrap();
@@ -19,6 +31,13 @@ export function GroupsView() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-sm font-black uppercase tracking-wide text-stone-500">
+          Group standings
+        </h1>
+        <StatLegend items={GROUP_LEGEND} />
+      </div>
+
       {Object.entries(data.standings)
         .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
         .map(([groupName, rows]) => (

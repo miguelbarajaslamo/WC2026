@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { InlinePredictionPicker } from "@/components/app/inline-prediction-picker";
 import { MatchRow } from "@/components/app/match-row";
+import { PicksSaveProvider } from "@/components/app/picks-save-context";
 import { TournamentSpecialsBanner } from "@/components/app/tournament-specials-banner";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { BonusPicksPanel } from "@/components/views/bonus-picks-panel";
@@ -38,8 +39,9 @@ export function PicksView() {
   ];
 
   return (
-    <div className="space-y-5">
-      <TournamentSpecialsBanner data={data} />
+    <PicksSaveProvider>
+      <div className="space-y-5">
+        <TournamentSpecialsBanner data={data} />
 
       <section className="grid grid-cols-4 gap-2">
         {filters.map((item) => (
@@ -97,6 +99,7 @@ export function PicksView() {
       </section>
 
       <BonusPicksPanel data={data} />
-    </div>
+      </div>
+    </PicksSaveProvider>
   );
 }

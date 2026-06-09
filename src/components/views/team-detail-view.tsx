@@ -6,11 +6,33 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Flag } from "@/components/ui/flag";
 import { FormSquares } from "@/components/app/form-squares";
 import { MatchRow } from "@/components/app/match-row";
+import { StatLegend } from "@/components/app/stat-legend";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { cn } from "@/lib/cn";
 import { getVisibleMatches } from "@/lib/data/selectors";
 import type { BootstrapData } from "@/lib/types";
+
+const GROUP_RECORD_LEGEND: Array<[string, string]> = [
+  ["Played", "Matches played"],
+  ["W", "Won"],
+  ["D", "Drawn"],
+  ["L", "Lost"],
+  ["GF", "Goals for"],
+  ["GA", "Goals against"],
+  ["GD", "Goal difference"],
+  ["Pts", "Points"],
+];
+
+const SQUAD_LEGEND: Array<[string, string]> = [
+  ["Pos", "Position (GK/DEF/MID/ATT)"],
+  ["P", "Games played"],
+  ["G", "Goals"],
+  ["A", "Assists"],
+  ["SV", "Saves"],
+  ["Y", "Yellow cards"],
+  ["R", "Red cards"],
+];
 
 export function TeamDetailView({ teamId }: { teamId: string }) {
   const { data, error, isLoading } = useBootstrap();
@@ -53,15 +75,23 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
       </section>
 
       {standings ? (
-        <section className="grid grid-cols-4 gap-2">
-          <Metric label="Played" value={standings.played} />
-          <Metric label="W" value={standings.won} />
-          <Metric label="D" value={standings.drawn} />
-          <Metric label="L" value={standings.lost} />
-          <Metric label="GF" value={standings.goalsFor} />
-          <Metric label="GA" value={standings.goalsAgainst} />
-          <Metric label="GD" value={standings.goalsFor - standings.goalsAgainst} />
-          <Metric label="Pts" value={standings.points} />
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black uppercase tracking-wide text-stone-500">
+              Group record
+            </h2>
+            <StatLegend items={GROUP_RECORD_LEGEND} />
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <Metric label="Played" value={standings.played} />
+            <Metric label="W" value={standings.won} />
+            <Metric label="D" value={standings.drawn} />
+            <Metric label="L" value={standings.lost} />
+            <Metric label="GF" value={standings.goalsFor} />
+            <Metric label="GA" value={standings.goalsAgainst} />
+            <Metric label="GD" value={standings.goalsFor - standings.goalsAgainst} />
+            <Metric label="Pts" value={standings.points} />
+          </div>
         </section>
       ) : null}
 
@@ -246,9 +276,12 @@ function TeamSquad({ data, teamId }: { data: BootstrapData; teamId: string }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-black uppercase tracking-wide text-stone-500">
-          Squad
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-black uppercase tracking-wide text-stone-500">
+            Squad
+          </h2>
+          <StatLegend items={SQUAD_LEGEND} />
+        </div>
         <button
           aria-pressed={showPreWc}
           className={cn(

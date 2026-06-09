@@ -1,11 +1,12 @@
 "use client";
 
 import { Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { Flag } from "@/components/ui/flag";
 import { FormSquares } from "@/components/app/form-squares";
+import { usePicksSave } from "@/components/app/picks-save-context";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
 import { scoreResult } from "@/lib/predictions";
@@ -50,6 +51,8 @@ export function InlinePredictionPicker({
   const [saveFailed, setSaveFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
+  const picksSave = usePicksSave();
+  const pickerId = useId();
   const locked = isMatchLocked(match);
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
@@ -133,6 +136,22 @@ export function InlinePredictionPicker({
       setSaving(false);
     }
   }
+
+  // Register with the "Save all" bar (no-op outside the picks list).
+  const saveRef = useRef(savePrediction);
+  useEffect(() => {
+    saveRef.current = savePrediction;
+  });
+  useEffect(() => {
+    if (!picksSave || locked) {
+      return;
+    }
+    picksSave.register(pickerId, {
+      dirty: canSave,
+      save: () => saveRef.current(),
+    });
+    return () => picksSave.unregister(pickerId);
+  }, [canSave, locked, pickerId, picksSave]);
 
   return (
     <div

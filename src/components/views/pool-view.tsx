@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { InstallInstructions } from "@/components/app/install-instructions";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { getProfile } from "@/lib/data/selectors";
 
@@ -77,13 +78,7 @@ export function PoolView() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-black/10 bg-white p-4">
-        <h2 className="font-black">Install app</h2>
-        <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-          iPhone: Share, Add to Home Screen. Android: browser menu, Install app.
-          The PWA opens without the normal browser chrome once installed.
-        </p>
-      </section>
+      <InstallInstructions />
     </div>
   );
 }
