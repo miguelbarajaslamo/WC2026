@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { CircleDollarSign } from "lucide-react";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
@@ -14,6 +15,8 @@ export function MemberAdminCard({ data }: { data: BootstrapData }) {
   const [color, setColor] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  // Optimistic paid overrides: userId → paid value while the PATCH is in-flight.
+  const [paidOverrides, setPaidOverrides] = useState<Record<string, boolean>>({});
 
   function startEdit(userId: string) {
     const profile = getProfile(data, userId);
@@ -21,6 +24,21 @@ export function MemberAdminCard({ data }: { data: BootstrapData }) {
     setName(profile.displayName);
     setColor(profile.avatarColor);
     setMessage("");
+  }
+
+  async function togglePaid(userId: string, currentPaid: boolean) {
+    const next = !currentPaid;
+    setPaidOverrides((prev) => ({ ...prev, [userId]: next }));
+    const response = await fetch("/api/admin/members", {
+      body: JSON.stringify({ paid: next, poolId: data.pool.id, userId }),
+      headers: { "Content-Type": "application/json" },
+      method: "PATCH",
+    });
+    if (!response.ok) {
+      setPaidOverrides((prev) => ({ ...prev, [userId]: currentPaid }));
+    } else {
+      await queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+    }
   }
 
   async function save(userId: string, clearPhoto = false) {
@@ -78,6 +96,20 @@ export function MemberAdminCard({ data }: { data: BootstrapData }) {
                 <span className="rounded bg-stone-200 px-2 py-0.5 text-[10px] font-black uppercase text-stone-600">
                   {member.role}
                 </span>
+                {(() => {
+                  const isPaid = paidOverrides[member.userId] ?? member.paid;
+                  return (
+                    <button
+                      aria-label={isPaid ? "Mark as unpaid" : "Mark as paid"}
+                      className={isPaid ? "text-emerald-500" : "text-stone-300 hover:text-stone-400"}
+                      onClick={() => togglePaid(member.userId, isPaid)}
+                      title={isPaid ? "Paid" : "Not paid"}
+                      type="button"
+                    >
+                      <CircleDollarSign size={18} />
+                    </button>
+                  );
+                })()}
                 <button
                   className="text-xs font-black uppercase text-emerald-800"
                   onClick={() => (isEditing ? setEditing(null) : startEdit(member.userId))}

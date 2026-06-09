@@ -143,6 +143,7 @@ export type PoolMember = {
   userId: string;
   role: "admin" | "player";
   joinedAt: string;
+  paid: boolean;
 };
 
 export type Pool = {

@@ -6,15 +6,16 @@ function validHexColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value);
 }
 
-// Admin edits another member's display name / avatar within their pool.
+// Admin edits another member's display name / avatar / paid status within their pool.
 export async function PATCH(request: Request) {
-  const { poolId, userId, displayName, avatarColor, clearPhoto } =
+  const { poolId, userId, displayName, avatarColor, clearPhoto, paid } =
     (await request.json()) as {
       poolId?: string;
       userId?: string;
       displayName?: string;
       avatarColor?: string;
       clearPhoto?: boolean;
+      paid?: boolean;
     };
 
   if (!poolId || !userId) {
@@ -69,21 +70,36 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  // paid is on pool_members; profile fields are on profiles — update separately.
+  if (paid !== undefined) {
+    const { error } = await admin
+      .from("pool_members")
+      .update({ paid })
+      .eq("pool_id", poolId)
+      .eq("user_id", userId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+
+  const profileUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (name !== undefined) {
-    update.display_name = name;
+    profileUpdate.display_name = name;
   }
   if (color !== undefined) {
-    update.avatar_color = color;
+    profileUpdate.avatar_color = color;
   }
   if (clearPhoto) {
-    update.avatar_url = null;
+    profileUpdate.avatar_url = null;
   }
 
-  const { error } = await admin.from("profiles").update(update).eq("id", userId);
+  if (name !== undefined || color !== undefined || clearPhoto) {
+    const { error } = await admin.from("profiles").update(profileUpdate).eq("id", userId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ ok: true });

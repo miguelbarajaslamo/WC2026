@@ -29,6 +29,7 @@ import {
 
 type PoolMemberRow = {
   joined_at: string;
+  paid: boolean;
   pool_id: string;
   role: "admin" | "player";
   user_id: string;
@@ -585,7 +586,7 @@ export async function buildSupabaseBootstrapData({
 }): Promise<BootstrapData> {
   const { data: currentMembership, error: membershipError } = await supabase
     .from("pool_members")
-    .select("pool_id,user_id,role,joined_at")
+    .select("pool_id,user_id,role,joined_at,paid")
     .eq("user_id", userId)
     .order("joined_at", { ascending: true })
     .limit(1)
@@ -632,7 +633,7 @@ export async function buildSupabaseBootstrapData({
     selectMany<PoolMemberRow>(
       supabase
         .from("pool_members")
-        .select("pool_id,user_id,role,joined_at")
+        .select("pool_id,user_id,role,joined_at,paid")
         .eq("pool_id", pool.id),
     ),
     selectMany<TeamRow>(
@@ -744,6 +745,7 @@ export async function buildSupabaseBootstrapData({
 
   const members = memberRows.map((member) => ({
     joinedAt: member.joined_at,
+    paid: member.paid,
     role: member.role,
     userId: member.user_id,
   }));

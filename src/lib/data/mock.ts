@@ -540,6 +540,7 @@ export function buildMockBootstrapData(): BootstrapData {
       userId: profile.id,
       role: index === 0 ? "admin" : "player",
       joinedAt: formatISO(addHours(now, -72 + index)),
+      paid: false,
     })),
     teams,
     players,
