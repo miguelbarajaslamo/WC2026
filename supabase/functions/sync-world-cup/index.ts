@@ -571,13 +571,17 @@ async function upsertLiveFixtures(
     normalizeFixtureTeam(item, "away"),
   ]);
   const teamRows = uniqueBy(
-    normalizedFixtureTeams.map((team) => ({
-      flag_url: team.logo,
-      id: team.id,
-      iso2: iso2FromTeamName(team.name),
-      name: team.name,
-      short_name: shortNameFromTeamName(team.name),
-    })),
+    normalizedFixtureTeams.map((team) => {
+      const iso2 = iso2FromTeamName(team.name);
+      return {
+        flag_url: team.logo,
+        id: team.id,
+        name: team.name,
+        short_name: shortNameFromTeamName(team.name),
+        // Omit iso2 when unknown so the upsert doesn't overwrite good DB data with null.
+        ...(iso2 !== null && { iso2 }),
+      };
+    }),
     (row) => row.id,
   );
 
@@ -669,14 +673,15 @@ async function upsertStandings(
     .filter((standing) => standing.team?.id && standing.team.name)
     .map((standing) => {
       const teamName = standing.team?.name ?? "TBD";
-
+      const iso2 = iso2FromTeamName(teamName);
       return {
         flag_url: standing.team?.logo,
         group_name: standing.group ?? null,
         id: String(standing.team?.id),
-        iso2: iso2FromTeamName(teamName),
         name: teamName,
         short_name: shortNameFromTeamName(teamName),
+        // Omit iso2 when unknown so the upsert doesn't overwrite good DB data with null.
+        ...(iso2 !== null && { iso2 }),
       };
     });
 
@@ -1203,34 +1208,119 @@ function normalizeFixtureTeam(
 }
 
 const teamAliases: Record<string, { iso2: string; shortName: string }> = {
+  // CONMEBOL
   Argentina: { iso2: "ar", shortName: "ARG" },
-  Australia: { iso2: "au", shortName: "AUS" },
-  Belgium: { iso2: "be", shortName: "BEL" },
+  Bolivia: { iso2: "bo", shortName: "BOL" },
   Brazil: { iso2: "br", shortName: "BRA" },
-  Canada: { iso2: "ca", shortName: "CAN" },
   Chile: { iso2: "cl", shortName: "CHI" },
   Colombia: { iso2: "co", shortName: "COL" },
+  Ecuador: { iso2: "ec", shortName: "ECU" },
+  Paraguay: { iso2: "py", shortName: "PAR" },
+  Peru: { iso2: "pe", shortName: "PER" },
+  Uruguay: { iso2: "uy", shortName: "URU" },
+  Venezuela: { iso2: "ve", shortName: "VEN" },
+
+  // CONCACAF
+  Canada: { iso2: "ca", shortName: "CAN" },
+  "Costa Rica": { iso2: "cr", shortName: "CRC" },
+  Cuba: { iso2: "cu", shortName: "CUB" },
+  "El Salvador": { iso2: "sv", shortName: "SLV" },
+  Guatemala: { iso2: "gt", shortName: "GUA" },
+  Haiti: { iso2: "ht", shortName: "HAI" },
+  Honduras: { iso2: "hn", shortName: "HON" },
+  Jamaica: { iso2: "jm", shortName: "JAM" },
+  Mexico: { iso2: "mx", shortName: "MEX" },
+  Panama: { iso2: "pa", shortName: "PAN" },
+  "Trinidad & Tobago": { iso2: "tt", shortName: "TRI" },
+  "Trinidad and Tobago": { iso2: "tt", shortName: "TRI" },
+  USA: { iso2: "us", shortName: "USA" },
+  "United States": { iso2: "us", shortName: "USA" },
+
+  // UEFA
+  Albania: { iso2: "al", shortName: "ALB" },
+  Austria: { iso2: "at", shortName: "AUT" },
+  Belgium: { iso2: "be", shortName: "BEL" },
+  "Bosnia & Herzegovina": { iso2: "ba", shortName: "BIH" },
+  "Bosnia and Herzegovina": { iso2: "ba", shortName: "BIH" },
+  "Czech Republic": { iso2: "cz", shortName: "CZE" },
+  Czechia: { iso2: "cz", shortName: "CZE" },
   Croatia: { iso2: "hr", shortName: "CRO" },
   Denmark: { iso2: "dk", shortName: "DEN" },
-  Ecuador: { iso2: "ec", shortName: "ECU" },
   England: { iso2: "gb-eng", shortName: "ENG" },
   France: { iso2: "fr", shortName: "FRA" },
+  Georgia: { iso2: "ge", shortName: "GEO" },
   Germany: { iso2: "de", shortName: "GER" },
-  Ghana: { iso2: "gh", shortName: "GHA" },
+  Greece: { iso2: "gr", shortName: "GRE" },
+  Hungary: { iso2: "hu", shortName: "HUN" },
   Italy: { iso2: "it", shortName: "ITA" },
-  Japan: { iso2: "jp", shortName: "JPN" },
-  Mexico: { iso2: "mx", shortName: "MEX" },
-  Morocco: { iso2: "ma", shortName: "MAR" },
   Netherlands: { iso2: "nl", shortName: "NED" },
+  "North Macedonia": { iso2: "mk", shortName: "MKD" },
   Norway: { iso2: "no", shortName: "NOR" },
   Poland: { iso2: "pl", shortName: "POL" },
   Portugal: { iso2: "pt", shortName: "POR" },
-  Senegal: { iso2: "sn", shortName: "SEN" },
+  Romania: { iso2: "ro", shortName: "ROU" },
+  Scotland: { iso2: "gb-sct", shortName: "SCO" },
+  Serbia: { iso2: "rs", shortName: "SRB" },
+  Slovakia: { iso2: "sk", shortName: "SVK" },
+  Slovenia: { iso2: "si", shortName: "SVN" },
   Spain: { iso2: "es", shortName: "ESP" },
   Sweden: { iso2: "se", shortName: "SWE" },
   Switzerland: { iso2: "ch", shortName: "SUI" },
-  Uruguay: { iso2: "uy", shortName: "URU" },
-  USA: { iso2: "us", shortName: "USA" },
+  Turkey: { iso2: "tr", shortName: "TUR" },
+  Turkiye: { iso2: "tr", shortName: "TUR" },
+  Türkiye: { iso2: "tr", shortName: "TUR" },
+  Ukraine: { iso2: "ua", shortName: "UKR" },
+  Wales: { iso2: "gb-wls", shortName: "WAL" },
+
+  // AFC
+  Australia: { iso2: "au", shortName: "AUS" },
+  Bahrain: { iso2: "bh", shortName: "BHR" },
+  China: { iso2: "cn", shortName: "CHN" },
+  Indonesia: { iso2: "id", shortName: "IDN" },
+  Iran: { iso2: "ir", shortName: "IRN" },
+  "IR Iran": { iso2: "ir", shortName: "IRN" },
+  Iraq: { iso2: "iq", shortName: "IRQ" },
+  Japan: { iso2: "jp", shortName: "JPN" },
+  Jordan: { iso2: "jo", shortName: "JOR" },
+  "Korea Republic": { iso2: "kr", shortName: "KOR" },
+  "South Korea": { iso2: "kr", shortName: "KOR" },
+  Oman: { iso2: "om", shortName: "OMA" },
+  Qatar: { iso2: "qa", shortName: "QAT" },
+  "Saudi Arabia": { iso2: "sa", shortName: "KSA" },
+  UAE: { iso2: "ae", shortName: "UAE" },
+  "United Arab Emirates": { iso2: "ae", shortName: "UAE" },
+  Uzbekistan: { iso2: "uz", shortName: "UZB" },
+
+  // CAF
+  Algeria: { iso2: "dz", shortName: "ALG" },
+  Angola: { iso2: "ao", shortName: "ANG" },
+  Benin: { iso2: "bj", shortName: "BEN" },
+  Cameroon: { iso2: "cm", shortName: "CMR" },
+  "Cape Verde": { iso2: "cv", shortName: "CPV" },
+  "Congo DR": { iso2: "cd", shortName: "COD" },
+  "DR Congo": { iso2: "cd", shortName: "COD" },
+  "Cote d'Ivoire": { iso2: "ci", shortName: "CIV" },
+  "Côte d'Ivoire": { iso2: "ci", shortName: "CIV" },
+  "Ivory Coast": { iso2: "ci", shortName: "CIV" },
+  Egypt: { iso2: "eg", shortName: "EGY" },
+  Gabon: { iso2: "ga", shortName: "GAB" },
+  Ghana: { iso2: "gh", shortName: "GHA" },
+  Guinea: { iso2: "gn", shortName: "GUI" },
+  Kenya: { iso2: "ke", shortName: "KEN" },
+  Mali: { iso2: "ml", shortName: "MLI" },
+  Morocco: { iso2: "ma", shortName: "MAR" },
+  Mozambique: { iso2: "mz", shortName: "MOZ" },
+  Nigeria: { iso2: "ng", shortName: "NGA" },
+  Senegal: { iso2: "sn", shortName: "SEN" },
+  "South Africa": { iso2: "za", shortName: "RSA" },
+  Tanzania: { iso2: "tz", shortName: "TAN" },
+  Tunisia: { iso2: "tn", shortName: "TUN" },
+  Uganda: { iso2: "ug", shortName: "UGA" },
+  Zambia: { iso2: "zm", shortName: "ZMB" },
+  Zimbabwe: { iso2: "zw", shortName: "ZIM" },
+
+  // OFC
+  "New Zealand": { iso2: "nz", shortName: "NZL" },
 };
 
 function shortNameFromTeamName(name: string) {

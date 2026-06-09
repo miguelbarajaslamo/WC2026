@@ -151,7 +151,9 @@ export function InlinePredictionPicker({
       save: () => saveRef.current(),
     });
     return () => picksSave.unregister(pickerId);
-  }, [canSave, locked, pickerId, picksSave]);
+  // picksSave omitted: register/unregister are stable; including it re-triggers on every provider render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSave, locked, pickerId]);
 
   return (
     <div

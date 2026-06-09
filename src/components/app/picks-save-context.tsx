@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useState,
 } from "react";
 
@@ -52,8 +53,10 @@ export function PicksSaveProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const contextValue = useMemo(() => ({ register, unregister }), [register, unregister]);
+
   return (
-    <PicksSaveContext.Provider value={{ register, unregister }}>
+    <PicksSaveContext.Provider value={contextValue}>
       {children}
       {dirty.length > 0 ? (
         <div className="fixed inset-x-0 bottom-[84px] z-40 px-3 md:bottom-6">
