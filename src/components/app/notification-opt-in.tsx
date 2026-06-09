@@ -20,6 +20,7 @@ export function NotificationOptIn() {
   const [message, setMessage] = useState("Not enabled");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     async function checkExistingSubscription() {
@@ -117,6 +118,32 @@ export function NotificationOptIn() {
     }
   }
 
+  async function sendTestNotification() {
+    setTesting(true);
+
+    try {
+      const response = await fetch("/api/push/test", { method: "POST" });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        sent?: number;
+      };
+
+      if (response.ok) {
+        setMessage(
+          body.sent && body.sent > 1
+            ? `Test sent to ${body.sent} devices. Check for it.`
+            : "Test notification sent. Check for it.",
+        );
+      } else {
+        setMessage(body.error ?? "Could not send test notification.");
+      }
+    } catch {
+      setMessage("Could not send test notification.");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-black/10 bg-white p-4">
       <div className="grid grid-cols-[36px_1fr_auto] items-center gap-3">
@@ -127,14 +154,26 @@ export function NotificationOptIn() {
           <span className="block font-black">Deadline reminders</span>
           <span className="text-sm font-bold text-stone-500">{message}</span>
         </span>
-        <button
-          className="rounded-md bg-stone-950 px-3 py-2 text-xs font-black uppercase text-white disabled:bg-stone-300"
-          disabled={busy}
-          onClick={enabled ? disableNotifications : enableNotifications}
-          type="button"
-        >
-          {enabled ? "Disable" : "Enable"}
-        </button>
+        <div className="flex items-center gap-2">
+          {enabled ? (
+            <button
+              className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-black uppercase text-stone-700 disabled:bg-stone-100 disabled:text-stone-400"
+              disabled={busy || testing}
+              onClick={sendTestNotification}
+              type="button"
+            >
+              {testing ? "Sending…" : "Test"}
+            </button>
+          ) : null}
+          <button
+            className="rounded-md bg-stone-950 px-3 py-2 text-xs font-black uppercase text-white disabled:bg-stone-300"
+            disabled={busy || testing}
+            onClick={enabled ? disableNotifications : enableNotifications}
+            type="button"
+          >
+            {enabled ? "Disable" : "Enable"}
+          </button>
+        </div>
       </div>
       <p className="mt-3 text-xs font-bold leading-5 text-stone-500">
         On iPhone, install the PWA to the Home Screen before enabling web push.
