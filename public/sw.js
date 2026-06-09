@@ -11,7 +11,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(payload.title ?? "WORLD CUP PICKS", {
       body: payload.body,
       data: { url: payload.url ?? "/picks" },
-      icon: "/icon.svg",
+      icon: "/icon-192.png",
       badge: "/icon.svg",
     }),
   );

@@ -74,10 +74,15 @@ export function AppShell({
               </button>
             ) : null}
             <Link className="min-w-0" href="/">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
-                WORLD CUP PICKS
-              </p>
-              <h1 className="truncate text-xl font-black">{title}</h1>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt="WORLD CUP PICKS"
+                className="h-7 w-auto"
+                height={200}
+                src="/logo-wordmark.png"
+                width={532}
+              />
+              <h1 className="mt-0.5 truncate text-xl font-black">{title}</h1>
               {kicker ? (
                 <p className="truncate text-xs font-bold text-white/60">{kicker}</p>
               ) : null}
