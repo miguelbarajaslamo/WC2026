@@ -137,6 +137,10 @@ export type Profile = {
   avatarUrl?: string;
   notificationDeadlines: boolean;
   notificationLiveScores: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  timezone?: string;
 };
 
 export type PoolMember = {

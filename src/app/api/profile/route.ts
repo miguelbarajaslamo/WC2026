@@ -5,10 +5,30 @@ function validHexColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value);
 }
 
+function isValidTimezone(value: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function PATCH(request: Request) {
-  const { avatarColor, displayName } = (await request.json()) as {
+  const {
+    avatarColor,
+    displayName,
+    quietHoursEnabled,
+    quietHoursStart,
+    quietHoursEnd,
+    timezone,
+  } = (await request.json()) as {
     avatarColor?: string;
     displayName?: string;
+    quietHoursEnabled?: boolean;
+    quietHoursStart?: number;
+    quietHoursEnd?: number;
+    timezone?: string;
   };
   const name = displayName?.trim();
   const color = avatarColor?.trim();
@@ -27,7 +47,41 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const update: { avatar_color?: string; display_name?: string; updated_at: string } = {
+  if (
+    quietHoursStart !== undefined ||
+    quietHoursEnd !== undefined
+  ) {
+    const start = quietHoursStart ?? 9;
+    const end = quietHoursEnd ?? 23;
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 0 ||
+      start > 23 ||
+      end < 1 ||
+      end > 24 ||
+      start >= end
+    ) {
+      return NextResponse.json(
+        { error: "Quiet hours must be a valid range (start before end)." },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (timezone !== undefined && !isValidTimezone(timezone)) {
+    return NextResponse.json({ error: "Invalid timezone." }, { status: 400 });
+  }
+
+  const update: {
+    avatar_color?: string;
+    display_name?: string;
+    quiet_hours_enabled?: boolean;
+    quiet_hours_start?: number;
+    quiet_hours_end?: number;
+    timezone?: string;
+    updated_at: string;
+  } = {
     updated_at: new Date().toISOString(),
   };
 
@@ -37,6 +91,22 @@ export async function PATCH(request: Request) {
 
   if (color !== undefined) {
     update.avatar_color = color;
+  }
+
+  if (quietHoursEnabled !== undefined) {
+    update.quiet_hours_enabled = quietHoursEnabled;
+  }
+
+  if (quietHoursStart !== undefined) {
+    update.quiet_hours_start = quietHoursStart;
+  }
+
+  if (quietHoursEnd !== undefined) {
+    update.quiet_hours_end = quietHoursEnd;
+  }
+
+  if (timezone !== undefined) {
+    update.timezone = timezone;
   }
 
   const supabase = await createSupabaseServerClient();

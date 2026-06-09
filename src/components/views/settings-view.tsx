@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { LogoutButton } from "@/components/app/logout-button";
 import { NotificationOptIn } from "@/components/app/notification-opt-in";
+import { QuietHoursPanel } from "@/components/app/quiet-hours-panel";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { getProfile } from "@/lib/data/selectors";
@@ -281,6 +282,7 @@ export function SettingsView() {
         value="Auto"
       />
       <NotificationOptIn />
+      <QuietHoursPanel profile={profile} />
       <SettingRow
         body="Add WORLD CUP PICKS to the home screen for standalone PWA mode."
         icon={<Smartphone size={20} />}
