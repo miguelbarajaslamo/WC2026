@@ -206,13 +206,53 @@ function MessageBubble({
 }) {
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
   const profile = profileFor(data, message.user_id);
   const mine = message.user_id === data.currentUserId;
   const mentionsMe = message.mentions.includes(data.currentUserId);
   const canDelete = mine || isOwner;
 
+  function cancelPress() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    pressStartRef.current = null;
+  }
+
+  function handlePointerDown(event: React.PointerEvent) {
+    if (!canDelete) {
+      return;
+    }
+    pressStartRef.current = { x: event.clientX, y: event.clientY };
+    pressTimerRef.current = setTimeout(() => {
+      pressTimerRef.current = null;
+      // Swallow the click that follows releasing a long press, so e.g. a
+      // vote option under the finger doesn't get tapped.
+      suppressClickRef.current = true;
+      setMenuOpen(true);
+    }, 500);
+  }
+
+  function handlePointerMove(event: React.PointerEvent) {
+    const start = pressStartRef.current;
+    if (!start) {
+      return;
+    }
+    // A drag (scrolling) is not a long press.
+    if (
+      Math.abs(event.clientX - start.x) > 10 ||
+      Math.abs(event.clientY - start.y) > 10
+    ) {
+      cancelPress();
+    }
+  }
+
   async function deleteMessage() {
-    if (deleting || !window.confirm("Delete this message?")) {
+    if (deleting) {
       return;
     }
     setDeleting(true);
@@ -225,6 +265,7 @@ function MessageBubble({
       queryKey: chatQueryKey(message.pool_id),
     });
     setDeleting(false);
+    setMenuOpen(false);
   }
 
   return (
@@ -238,12 +279,30 @@ function MessageBubble({
       </div>
       <div
         className={cn(
-          "min-w-0 max-w-[85%] rounded-lg border p-3",
+          "min-w-0 max-w-[85%] select-none rounded-lg border p-3 [-webkit-touch-callout:none]",
           mine
             ? "border-emerald-900/20 bg-emerald-950 text-white"
             : "border-black/10 bg-white",
           mentionsMe && !mine ? "ring-2 ring-amber-400" : "",
         )}
+        onClickCapture={(event) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        onContextMenu={(event) => {
+          if (canDelete) {
+            event.preventDefault();
+            setMenuOpen(true);
+          }
+        }}
+        onPointerCancel={cancelPress}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={cancelPress}
+        onPointerMove={handlePointerMove}
+        onPointerUp={cancelPress}
       >
         <p
           className={cn(
@@ -255,20 +314,6 @@ function MessageBubble({
           <span className="ml-2 font-bold opacity-70">
             {timeLabel(message.created_at)}
           </span>
-          {canDelete ? (
-            <button
-              aria-label="Delete message"
-              className={cn(
-                "ml-2 inline-flex size-6 items-center justify-center rounded align-middle opacity-50 hover:opacity-100",
-                mine ? "text-emerald-200" : "text-stone-400",
-              )}
-              disabled={deleting}
-              onClick={() => void deleteMessage()}
-              type="button"
-            >
-              <Trash2 size={13} />
-            </button>
-          ) : null}
         </p>
         {message.vote_question && message.vote_options ? (
           <VoteCard
@@ -284,6 +329,38 @@ function MessageBubble({
           </p>
         )}
       </div>
+
+      {menuOpen ? (
+        <>
+          <button
+            aria-label="Close message menu"
+            className="fixed inset-0 z-40 cursor-default bg-black/30"
+            onClick={() => setMenuOpen(false)}
+            type="button"
+          />
+          <div className="fixed inset-x-4 bottom-[calc(24px+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md overflow-hidden rounded-lg bg-white shadow-2xl">
+            <p className="truncate border-b border-black/5 px-4 py-3 text-xs font-bold text-stone-500">
+              {message.vote_question ?? message.body}
+            </p>
+            <button
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-black text-red-700 hover:bg-red-50 disabled:opacity-50"
+              disabled={deleting}
+              onClick={() => void deleteMessage()}
+              type="button"
+            >
+              <Trash2 size={17} />
+              {deleting ? "Deleting..." : "Delete message"}
+            </button>
+            <button
+              className="w-full border-t border-black/5 px-4 py-3.5 text-sm font-black text-stone-600 hover:bg-stone-50"
+              onClick={() => setMenuOpen(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
