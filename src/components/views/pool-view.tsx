@@ -2,7 +2,8 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChevronRight, Coins, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, Coins, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
@@ -16,6 +17,8 @@ import type { Pool } from "@/lib/types";
 
 export function PoolView() {
   const { data, error, isLoading } = useBootstrap();
+  const router = useRouter();
+  const [preview, setPreview] = useState<{ name: string; url: string } | null>(null);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading pool" />;
@@ -72,29 +75,74 @@ export function PoolView() {
         <div className="mt-3 space-y-3">
           {data.members.map((member) => {
             const profile = getProfile(data, member.userId);
+            const detailHref = `/members/${member.userId}`;
             return (
-              <Link
+              <div
                 className="grid grid-cols-[40px_1fr_auto_16px] items-center gap-3 rounded-md p-1 -m-1 hover:bg-stone-50"
-                href={`/members/${member.userId}`}
                 key={member.userId}
               >
-                <Avatar
-                  color={profile.avatarColor}
-                  imageUrl={profile.avatarUrl}
-                  name={profile.displayName}
-                />
-                <span className="font-bold">{profile.displayName}</span>
-                <span className="rounded bg-stone-100 px-2 py-1 text-[10px] font-black uppercase text-stone-500">
-                  {member.role}
-                </span>
-                <ChevronRight className="text-stone-300" size={16} />
-              </Link>
+                <button
+                  aria-label={
+                    profile.avatarUrl
+                      ? `View ${profile.displayName}'s photo`
+                      : `Open ${profile.displayName}`
+                  }
+                  className="rounded-full"
+                  onClick={() => {
+                    if (profile.avatarUrl) {
+                      setPreview({ name: profile.displayName, url: profile.avatarUrl });
+                    } else {
+                      router.push(detailHref);
+                    }
+                  }}
+                  type="button"
+                >
+                  <Avatar
+                    color={profile.avatarColor}
+                    imageUrl={profile.avatarUrl}
+                    name={profile.displayName}
+                  />
+                </button>
+                {/* display:contents lets the link's cells flow into the grid
+                    while keeping the avatar button a separate click target. */}
+                <Link className="contents" href={detailHref}>
+                  <span className="font-bold">{profile.displayName}</span>
+                  <span className="rounded bg-stone-100 px-2 py-1 text-[10px] font-black uppercase text-stone-500">
+                    {member.role}
+                  </span>
+                  <ChevronRight className="text-stone-300" size={16} />
+                </Link>
+              </div>
             );
           })}
         </div>
       </section>
 
       <InstallInstructions />
+
+      {preview ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 pt-[calc(24px+var(--safe-top))]"
+          onClick={() => setPreview(null)}
+          role="dialog"
+        >
+          <button
+            aria-label="Close photo"
+            className="absolute right-4 top-[calc(16px+var(--safe-top))] grid size-10 place-items-center rounded-full bg-white/15 text-white"
+            onClick={() => setPreview(null)}
+            type="button"
+          >
+            <X size={22} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={preview.name}
+            className="max-h-full w-auto max-w-full rounded-xl object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+            src={preview.url}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
