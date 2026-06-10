@@ -41,6 +41,34 @@ export function MemberAdminCard({ data }: { data: BootstrapData }) {
     }
   }
 
+  async function uploadPhoto(userId: string, file?: File) {
+    if (!file) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+
+    const formData = new FormData();
+    formData.set("avatar", file);
+    formData.set("userId", userId);
+
+    const response = await fetch("/api/profile/avatar", {
+      body: formData,
+      method: "POST",
+    });
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    setSaving(false);
+
+    if (!response.ok) {
+      setMessage(body.error ?? "Could not upload photo.");
+      return;
+    }
+
+    setMessage("Photo updated.");
+    await queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+  }
+
   async function save(userId: string, clearPhoto = false) {
     setSaving(true);
     setMessage("");
@@ -151,6 +179,19 @@ export function MemberAdminCard({ data }: { data: BootstrapData }) {
                     >
                       {saving ? "Saving…" : "Save"}
                     </button>
+                    <label className="grid h-10 cursor-pointer place-items-center rounded-md border border-black/15 px-3 text-sm font-black text-emerald-800">
+                      Photo
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={saving}
+                        onChange={(event) => {
+                          void uploadPhoto(member.userId, event.target.files?.[0]);
+                          event.target.value = "";
+                        }}
+                        type="file"
+                      />
+                    </label>
                     {profile.avatarUrl ? (
                       <button
                         className="h-10 rounded-md border border-black/15 px-3 text-sm font-black text-red-700"
