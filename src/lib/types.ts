@@ -137,6 +137,8 @@ export type Profile = {
   avatarUrl?: string;
   notificationDeadlines: boolean;
   notificationLiveScores: boolean;
+  notificationMatchLocks: boolean;
+  notificationFullTime: boolean;
   quietHoursEnabled: boolean;
   quietHoursStart: number;
   quietHoursEnd: number;

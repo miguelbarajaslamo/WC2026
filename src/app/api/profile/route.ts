@@ -18,6 +18,9 @@ export async function PATCH(request: Request) {
   const {
     avatarColor,
     displayName,
+    notificationDeadlines,
+    notificationMatchLocks,
+    notificationFullTime,
     quietHoursEnabled,
     quietHoursStart,
     quietHoursEnd,
@@ -25,6 +28,9 @@ export async function PATCH(request: Request) {
   } = (await request.json()) as {
     avatarColor?: string;
     displayName?: string;
+    notificationDeadlines?: boolean;
+    notificationMatchLocks?: boolean;
+    notificationFullTime?: boolean;
     quietHoursEnabled?: boolean;
     quietHoursStart?: number;
     quietHoursEnd?: number;
@@ -76,6 +82,9 @@ export async function PATCH(request: Request) {
   const update: {
     avatar_color?: string;
     display_name?: string;
+    notification_deadlines?: boolean;
+    notification_match_locks?: boolean;
+    notification_full_time?: boolean;
     quiet_hours_enabled?: boolean;
     quiet_hours_start?: number;
     quiet_hours_end?: number;
@@ -91,6 +100,18 @@ export async function PATCH(request: Request) {
 
   if (color !== undefined) {
     update.avatar_color = color;
+  }
+
+  if (notificationDeadlines !== undefined) {
+    update.notification_deadlines = notificationDeadlines;
+  }
+
+  if (notificationMatchLocks !== undefined) {
+    update.notification_match_locks = notificationMatchLocks;
+  }
+
+  if (notificationFullTime !== undefined) {
+    update.notification_full_time = notificationFullTime;
   }
 
   if (quietHoursEnabled !== undefined) {

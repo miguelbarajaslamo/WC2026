@@ -1,12 +1,13 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, CalendarClock, Smartphone } from "lucide-react";
+import { CalendarClock, Smartphone } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { LogoutButton } from "@/components/app/logout-button";
 import { NotificationOptIn } from "@/components/app/notification-opt-in";
+import { NotificationPreferences } from "@/components/app/notification-preferences";
 import { QuietHoursPanel } from "@/components/app/quiet-hours-panel";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
@@ -270,18 +271,13 @@ export function SettingsView() {
       </div>
 
       <SettingRow
-        body="Deadline reminders, match locks, full-time score updates."
-        icon={<Bell size={20} />}
-        title="Notifications"
-        value={profile.notificationDeadlines ? "On" : "Off"}
-      />
-      <SettingRow
         body={`Match and lock times use your phone/browser timezone: ${getLocalTimeZone()}.`}
         icon={<Smartphone size={20} />}
         title="Local time"
         value="Auto"
       />
       <NotificationOptIn />
+      <NotificationPreferences profile={profile} />
       <QuietHoursPanel profile={profile} />
       <SettingRow
         body="Add WORLD CUP PICKS to the home screen for standalone PWA mode."

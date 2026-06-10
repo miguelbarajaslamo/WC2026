@@ -29,11 +29,11 @@ const pool: Pool = {
 };
 
 const profiles: Profile[] = [
-  { id: "user-miguel", displayName: "Miguel", avatarColor: "#006a4e", notificationDeadlines: true, notificationLiveScores: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
-  { id: "user-lina", displayName: "Lina", avatarColor: "#d5a021", notificationDeadlines: true, notificationLiveScores: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
-  { id: "user-anna", displayName: "Anna", avatarColor: "#c1121f", notificationDeadlines: true, notificationLiveScores: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
-  { id: "user-oscar", displayName: "Oscar", avatarColor: "#1746a2", notificationDeadlines: true, notificationLiveScores: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
-  { id: "user-dad", displayName: "Dad", avatarColor: "#111827", notificationDeadlines: true, notificationLiveScores: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
+  { id: "user-miguel", displayName: "Miguel", avatarColor: "#006a4e", notificationDeadlines: true, notificationLiveScores: false, notificationMatchLocks: false, notificationFullTime: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
+  { id: "user-lina", displayName: "Lina", avatarColor: "#d5a021", notificationDeadlines: true, notificationLiveScores: false, notificationMatchLocks: false, notificationFullTime: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
+  { id: "user-anna", displayName: "Anna", avatarColor: "#c1121f", notificationDeadlines: true, notificationLiveScores: false, notificationMatchLocks: false, notificationFullTime: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
+  { id: "user-oscar", displayName: "Oscar", avatarColor: "#1746a2", notificationDeadlines: true, notificationLiveScores: false, notificationMatchLocks: false, notificationFullTime: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
+  { id: "user-dad", displayName: "Dad", avatarColor: "#111827", notificationDeadlines: true, notificationLiveScores: false, notificationMatchLocks: false, notificationFullTime: false, quietHoursEnabled: false, quietHoursStart: 9, quietHoursEnd: 23 },
 ];
 
 const teams: Team[] = [

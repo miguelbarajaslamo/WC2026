@@ -53,6 +53,8 @@ type ProfileRow = {
   id: string;
   notification_deadlines: boolean | null;
   notification_live_scores: boolean | null;
+  notification_match_locks: boolean | null;
+  notification_full_time: boolean | null;
   quiet_hours_enabled: boolean | null;
   quiet_hours_start: number | null;
   quiet_hours_end: number | null;
@@ -271,6 +273,8 @@ function mapProfile(row: ProfileRow): Profile {
     id: row.id,
     notificationDeadlines: row.notification_deadlines ?? true,
     notificationLiveScores: row.notification_live_scores ?? false,
+    notificationMatchLocks: row.notification_match_locks ?? false,
+    notificationFullTime: row.notification_full_time ?? false,
     quietHoursEnabled: row.quiet_hours_enabled ?? false,
     quietHoursStart: row.quiet_hours_start ?? 9,
     quietHoursEnd: row.quiet_hours_end ?? 23,
@@ -761,7 +765,7 @@ export async function buildSupabaseBootstrapData({
     supabase
       .from("profiles")
       .select(
-        "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
+        "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
       )
       .in("id", members.map((member) => member.userId)),
   );
