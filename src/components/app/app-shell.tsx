@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ChatUnreadBadge } from "@/components/app/chat-unread";
 import { PoolGate } from "@/components/app/pool-gate";
 import { cn } from "@/lib/cn";
 
@@ -102,7 +103,7 @@ export function AppShell({
           <Link
             aria-label="Open pool chat"
             className={cn(
-              "grid size-11 place-items-center rounded-md ring-1",
+              "relative grid size-11 place-items-center rounded-md ring-1",
               pathname === "/chat"
                 ? "bg-white text-emerald-950 ring-white"
                 : "bg-white/10 text-white ring-white/15",
@@ -110,6 +111,7 @@ export function AppShell({
             href="/chat"
           >
             <MessageCircle size={20} />
+            <ChatUnreadBadge />
           </Link>
           <details className="relative">
             <summary

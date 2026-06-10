@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
+import { chatUnreadQueryKey, setChatLastSeen } from "@/lib/chat-unread";
 import { cn } from "@/lib/cn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BootstrapData, Profile } from "@/lib/types";
@@ -125,10 +126,21 @@ export function ChatView() {
   }, [poolId, isDemo, queryClient]);
 
   const endRef = useRef<HTMLDivElement>(null);
-  const messageCount = chatQuery.data?.messages.length ?? 0;
+  const messages = chatQuery.data?.messages ?? [];
+  const messageCount = messages.length;
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messageCount]);
+
+  // Viewing the chat marks everything seen, clearing the header badge.
+  const latestMessageAt = messages[messageCount - 1]?.created_at;
+  useEffect(() => {
+    if (!poolId || !latestMessageAt) {
+      return;
+    }
+    setChatLastSeen(poolId, new Date(latestMessageAt).getTime());
+    void queryClient.invalidateQueries({ queryKey: chatUnreadQueryKey(poolId) });
+  }, [poolId, latestMessageAt, queryClient]);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading chat" />;
@@ -150,7 +162,6 @@ export function ChatView() {
     return <ErrorState message={(chatQuery.error as Error).message} />;
   }
 
-  const messages = chatQuery.data?.messages ?? [];
   const responses = chatQuery.data?.responses ?? [];
   const isOwner = data.currentMemberRole === "admin";
 
