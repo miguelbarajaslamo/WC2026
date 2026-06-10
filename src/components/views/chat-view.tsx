@@ -588,7 +588,7 @@ function Composer({
                 void send();
               }
             }}
-            placeholder="Message the pool... use @ to mention"
+            placeholder="Message... @ to mention"
             ref={inputRef}
             rows={1}
             value={text}
