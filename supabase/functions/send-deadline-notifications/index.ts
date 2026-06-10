@@ -345,28 +345,49 @@ Deno.serve(async (request) => {
           .returns<PushSubscriptionRow[]>()
       : { data: [] };
 
-  let sent = 0;
+  // Drop jobs the user has already picked for; group the rest by user so that
+  // several matches locking at once become a single coalesced notification.
+  const staleJobIds: string[] = [];
+  const jobsByUser = new Map<string, NonNullable<typeof dueJobs>>();
   for (const job of dueJobs ?? []) {
     if (job.match_id && pickedKeys.has(`${job.user_id}:${job.match_id}`)) {
-      // User picked in the meantime — discard the stale reminder.
-      await supabase.from("notification_jobs").delete().eq("id", job.id);
+      staleJobIds.push(job.id);
       continue;
     }
+    const list = jobsByUser.get(job.user_id) ?? [];
+    list.push(job);
+    jobsByUser.set(job.user_id, list);
+  }
 
+  if (staleJobIds.length > 0) {
+    await supabase.from("notification_jobs").delete().in("id", staleJobIds);
+  }
+
+  let sent = 0;
+  for (const [userId, userJobs] of jobsByUser) {
+    const jobIds = userJobs.map((job) => job.id);
     const userSubscriptions = (subscriptions ?? []).filter(
-      (subscription) => subscription.user_id === job.user_id,
+      (subscription) => subscription.user_id === userId,
     );
 
     if (userSubscriptions.length === 0) {
       await supabase
         .from("notification_jobs")
-        .update({
-          error: "No push subscription",
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", job.id);
+        .update({ error: "No push subscription", sent_at: new Date().toISOString() })
+        .in("id", jobIds);
       continue;
     }
+
+    // One match → its own message; several due at once → a single summary.
+    const payload =
+      userJobs.length === 1
+        ? { body: userJobs[0].body, title: userJobs[0].title, url: userJobs[0].url }
+        : {
+            body: `You have ${userJobs.length} matches locking soon with no saved pick.`,
+            title: "Picks locking soon",
+            url: "/picks",
+          };
+    const payloadJson = JSON.stringify(payload);
 
     const errors: string[] = [];
     for (const subscription of userSubscriptions) {
@@ -374,16 +395,9 @@ Deno.serve(async (request) => {
         await webpush.sendNotification(
           {
             endpoint: subscription.endpoint,
-            keys: {
-              auth: subscription.auth,
-              p256dh: subscription.p256dh,
-            },
+            keys: { auth: subscription.auth, p256dh: subscription.p256dh },
           },
-          JSON.stringify({
-            body: job.body,
-            title: job.title,
-            url: job.url,
-          }),
+          payloadJson,
         );
         sent += 1;
       } catch (error) {
@@ -408,7 +422,7 @@ Deno.serve(async (request) => {
         error: errors.length > 0 ? errors.join("; ").slice(0, 500) : null,
         sent_at: new Date().toISOString(),
       })
-      .eq("id", job.id);
+      .in("id", jobIds);
   }
 
   return Response.json({ created: jobs.length, sent });
