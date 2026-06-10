@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 type Payload = {
   body?: string;
+  mentionAll?: boolean;
   mentions?: string[];
   poolId?: string;
   vote?: { question?: string; options?: string[] };
@@ -31,7 +32,8 @@ type QuietProfileRow = {
 };
 
 export async function POST(request: Request) {
-  const { body, mentions, poolId, vote } = (await request.json()) as Payload;
+  const { body, mentionAll, mentions, poolId, vote } =
+    (await request.json()) as Payload;
   const text = body?.trim();
 
   if (!poolId || !text || text.length > 2000) {
@@ -90,17 +92,29 @@ export async function POST(request: Request) {
   const admin = createSupabaseAdminClient();
 
   // Only pool members (other than the sender) can be mentioned.
-  const requestedMentions = [...new Set(mentions ?? [])].filter(
-    (id) => id !== user.id,
-  );
+  // @all (pool owner only) expands to every other member.
+  const wantsAll = Boolean(mentionAll) && member.role === "admin";
   let validMentions: string[] = [];
-  if (requestedMentions.length > 0) {
-    const { data: mentionedMembers } = await admin
+  if (wantsAll) {
+    const { data: allMembers } = await admin
       .from("pool_members")
       .select("user_id")
-      .eq("pool_id", poolId)
-      .in("user_id", requestedMentions);
-    validMentions = (mentionedMembers ?? []).map((row) => row.user_id);
+      .eq("pool_id", poolId);
+    validMentions = (allMembers ?? [])
+      .map((row) => row.user_id)
+      .filter((id) => id !== user.id);
+  } else {
+    const requestedMentions = [...new Set(mentions ?? [])].filter(
+      (id) => id !== user.id,
+    );
+    if (requestedMentions.length > 0) {
+      const { data: mentionedMembers } = await admin
+        .from("pool_members")
+        .select("user_id")
+        .eq("pool_id", poolId)
+        .in("user_id", requestedMentions);
+      validMentions = (mentionedMembers ?? []).map((row) => row.user_id);
+    }
   }
 
   const { data: message, error: insertError } = await admin
@@ -121,7 +135,7 @@ export async function POST(request: Request) {
   }
 
   if (validMentions.length > 0) {
-    await notifyMentions(admin, user.id, validMentions, text);
+    await notifyMentions(admin, user.id, validMentions, text, wantsAll);
   }
 
   return NextResponse.json({ id: message.id, ok: true });
@@ -135,6 +149,7 @@ async function notifyMentions(
   senderId: string,
   recipientIds: string[],
   text: string,
+  mentionedEveryone: boolean,
 ) {
   const publicKey = process.env.VAPID_PUBLIC_KEY ?? "";
   const privateKey = process.env.VAPID_PRIVATE_KEY ?? "";
@@ -169,7 +184,9 @@ async function notifyMentions(
 
   const senderName = senderProfile?.display_name ?? "Someone";
   const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
-  const title = `${senderName} mentioned you`;
+  const title = mentionedEveryone
+    ? `${senderName} mentioned everyone`
+    : `${senderName} mentioned you`;
   const now = new Date();
   const deferredJobs: Array<{
     body: string;

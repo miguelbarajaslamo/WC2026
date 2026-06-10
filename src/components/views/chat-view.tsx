@@ -273,7 +273,7 @@ function MentionText({
   }
 
   const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`@(?:${escaped.join("|")})`, "g");
+  const regex = new RegExp(`@(?:all\\b|${escaped.join("|")})`, "g");
   const parts: React.ReactNode[] = [];
   let last = 0;
   for (const match of text.matchAll(regex)) {
@@ -454,6 +454,10 @@ function Composer({
       : members.filter((profile) =>
           profile.displayName.toLowerCase().startsWith(mentionQuery.toLowerCase()),
         );
+  const suggestAll =
+    isOwner &&
+    mentionQuery !== null &&
+    "all".startsWith(mentionQuery.toLowerCase());
 
   function handleChange(value: string, caret: number) {
     setText(value);
@@ -462,20 +466,24 @@ function Composer({
     setMentionQuery(match ? match[1] : null);
   }
 
-  function pickMention(profile: Profile) {
+  function insertMentionToken(token: string) {
     const element = inputRef.current;
     const caret = element?.selectionStart ?? text.length;
-    const beforeCaret = text.slice(0, caret).replace(/@[^\s@]*$/, `@${profile.displayName} `);
+    const beforeCaret = text.slice(0, caret).replace(/@[^\s@]*$/, `@${token} `);
     const next = beforeCaret + text.slice(caret);
     setText(next);
-    setMentionIds((current) =>
-      current.includes(profile.id) ? current : [...current, profile.id],
-    );
     setMentionQuery(null);
     requestAnimationFrame(() => {
       element?.focus();
       element?.setSelectionRange(beforeCaret.length, beforeCaret.length);
     });
+  }
+
+  function pickMention(profile: Profile) {
+    insertMentionToken(profile.displayName);
+    setMentionIds((current) =>
+      current.includes(profile.id) ? current : [...current, profile.id],
+    );
   }
 
   async function send(vote?: { question: string; options: string[] }) {
@@ -492,9 +500,10 @@ function Composer({
       const profile = profileFor(data, id);
       return profile && body.includes(`@${profile.displayName}`);
     });
+    const mentionAll = isOwner && /(^|\s)@all\b/.test(body);
 
     const response = await fetch("/api/chat", {
-      body: JSON.stringify({ body, mentions, poolId, vote }),
+      body: JSON.stringify({ body, mentionAll, mentions, poolId, vote }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -516,8 +525,21 @@ function Composer({
 
   return (
     <div className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] z-20 rounded-lg border border-black/10 bg-white p-2 shadow-lg md:bottom-4">
-      {suggestions.length > 0 ? (
+      {suggestions.length > 0 || suggestAll ? (
         <div className="mb-2 overflow-hidden rounded-md border border-black/10">
+          {suggestAll ? (
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold hover:bg-stone-100"
+              onClick={() => insertMentionToken("all")}
+              type="button"
+            >
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-amber-100 text-[11px] font-black text-amber-900">
+                @
+              </span>
+              all
+              <span className="font-bold text-stone-400">— notify everyone</span>
+            </button>
+          ) : null}
           {suggestions.slice(0, 4).map((profile) => (
             <button
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold hover:bg-stone-100"
