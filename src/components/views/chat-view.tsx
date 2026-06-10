@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart2, Send, X } from "lucide-react";
+import { BarChart2, Send, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
@@ -204,9 +204,28 @@ function MessageBubble({
   message: ChatMessage;
   responses: VoteResponse[];
 }) {
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
   const profile = profileFor(data, message.user_id);
   const mine = message.user_id === data.currentUserId;
   const mentionsMe = message.mentions.includes(data.currentUserId);
+  const canDelete = mine || isOwner;
+
+  async function deleteMessage() {
+    if (deleting || !window.confirm("Delete this message?")) {
+      return;
+    }
+    setDeleting(true);
+    await fetch("/api/chat", {
+      body: JSON.stringify({ messageId: message.id }),
+      headers: { "Content-Type": "application/json" },
+      method: "DELETE",
+    });
+    await queryClient.invalidateQueries({
+      queryKey: chatQueryKey(message.pool_id),
+    });
+    setDeleting(false);
+  }
 
   return (
     <div className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row")}>
@@ -236,6 +255,20 @@ function MessageBubble({
           <span className="ml-2 font-bold opacity-70">
             {timeLabel(message.created_at)}
           </span>
+          {canDelete ? (
+            <button
+              aria-label="Delete message"
+              className={cn(
+                "ml-2 inline-flex size-6 items-center justify-center rounded align-middle opacity-50 hover:opacity-100",
+                mine ? "text-emerald-200" : "text-stone-400",
+              )}
+              disabled={deleting}
+              onClick={() => void deleteMessage()}
+              type="button"
+            >
+              <Trash2 size={13} />
+            </button>
+          ) : null}
         </p>
         {message.vote_question && message.vote_options ? (
           <VoteCard

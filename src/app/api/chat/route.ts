@@ -141,6 +141,59 @@ export async function POST(request: Request) {
   return NextResponse.json({ id: message.id, ok: true });
 }
 
+export async function DELETE(request: Request) {
+  const { messageId } = (await request.json()) as { messageId?: string };
+
+  if (!messageId) {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: message } = await admin
+    .from("pool_messages")
+    .select("id,pool_id,user_id")
+    .eq("id", messageId)
+    .maybeSingle<{ id: string; pool_id: string; user_id: string }>();
+
+  if (!message) {
+    return NextResponse.json({ error: "Message not found" }, { status: 404 });
+  }
+
+  // Authors can delete their own messages; the pool owner can delete any.
+  if (message.user_id !== user.id) {
+    const { data: member } = await supabase
+      .from("pool_members")
+      .select("role")
+      .eq("pool_id", message.pool_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (member?.role !== "admin") {
+      return NextResponse.json(
+        { error: "You can only delete your own messages." },
+        { status: 403 },
+      );
+    }
+  }
+
+  const { error } = await admin.from("pool_messages").delete().eq("id", messageId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 // Push "X mentioned you" to each mentioned member — immediately when allowed,
 // queued for the next quiet-hours window open otherwise (the notification cron
 // delivers queued jobs and coalesces several into one).
