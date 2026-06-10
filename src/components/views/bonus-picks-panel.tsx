@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { cn } from "@/lib/cn";
@@ -76,7 +76,15 @@ function BonusPickRow({
       pick.type === type &&
       pick.slot === slot,
   );
-  const options = data.bonusPickOptions.filter((option) => option.type === type);
+  // Normalize once per payload, not on every keystroke (player lists are big).
+  const entries = useMemo(
+    () =>
+      data.bonusPickOptions
+        .filter((option) => option.type === type)
+        .map((option) => ({ label: normalizeText(option.label), option })),
+    [data.bonusPickOptions, type],
+  );
+  const options = useMemo(() => entries.map((entry) => entry.option), [entries]);
   const [optionId, setOptionId] = useState(existing?.optionId ?? "");
   const existingOption = options.find((option) => option.id === existing?.optionId);
   const [query, setQuery] = useState(existingOption?.label ?? "");
@@ -84,13 +92,14 @@ function BonusPickRow({
   const [message, setMessage] = useState(existing ? "Saved" : "Missing");
   const dirty = optionId !== (existing?.optionId ?? "");
 
-  const normalizedQuery = normalizeText(query);
-  const filtered = (() => {
+  // Defer so the input paints instantly; the result list catches up.
+  const deferredQuery = useDeferredValue(query);
+  const filtered = useMemo(() => {
+    const normalizedQuery = normalizeText(deferredQuery);
     if (!normalizedQuery) {
       return [];
     }
-    return options
-      .map((option) => ({ option, label: normalizeText(option.label) }))
+    return entries
       .filter((entry) => entry.label.includes(normalizedQuery))
       .sort((left, right) => {
         // Prefix matches first, so the searched name surfaces above the cap.
@@ -103,7 +112,7 @@ function BonusPickRow({
       })
       .slice(0, 100)
       .map((entry) => entry.option);
-  })();
+  }, [deferredQuery, entries]);
 
   async function save() {
     const selectedOption = options.find((option) => option.id === optionId);
@@ -220,7 +229,7 @@ function BonusPickRow({
             <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-black/10 bg-white py-1 shadow-xl">
               {filtered.length === 0 ? (
                 <li className="px-3 py-2 text-sm font-bold text-stone-400">
-                  {normalizedQuery ? "No matches" : "Start typing to search…"}
+                  {query.trim() ? "No matches" : "Start typing to search…"}
                 </li>
               ) : (
                 filtered.map((option) => (

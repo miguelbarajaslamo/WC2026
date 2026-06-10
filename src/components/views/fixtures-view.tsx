@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { MatchRow } from "@/components/app/match-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -16,14 +16,16 @@ export function FixturesView() {
   const { data, error, isLoading } = useBootstrap();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FixturesFilter[]>([]);
+  // Defer filtering so keystrokes paint immediately and the list catches up.
+  const deferredQuery = useDeferredValue(query);
 
   const matches = useMemo(() => {
     if (!data) {
       return [];
     }
 
-    return filterFixturesMatches({ data, filters, query });
-  }, [data, filters, query]);
+    return filterFixturesMatches({ data, filters, query: deferredQuery });
+  }, [data, filters, deferredQuery]);
 
   function toggleFilter(value: FixturesFilter) {
     setFilters((current) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { InlinePredictionPicker } from "@/components/app/inline-prediction-picker";
 import { MatchRow } from "@/components/app/match-row";
@@ -19,7 +19,20 @@ export function PicksView() {
   const { data, error, isLoading } = useBootstrap();
   const [filter, setFilter] = useState<PicksFilter>("all");
 
-  if (isLoading || !data) {
+  // One pass per payload instead of re-filtering every list on each render.
+  const lists = useMemo(() => {
+    if (!data) {
+      return null;
+    }
+    return {
+      all: filterPicksMatches(data, "all"),
+      locked: filterPicksMatches(data, "locked"),
+      missing: filterPicksMatches(data, "missing"),
+      open: filterPicksMatches(data, "open"),
+    };
+  }, [data]);
+
+  if (isLoading || !data || !lists) {
     return <LoadingState label="Loading picks" />;
   }
 
@@ -27,15 +40,12 @@ export function PicksView() {
     return <ErrorState message={error.message} />;
   }
 
-  const filteredMatches = filterPicksMatches(data, filter);
-  const missing = filterPicksMatches(data, "missing");
-  const open = filterPicksMatches(data, "open");
-  const locked = filterPicksMatches(data, "locked");
+  const filteredMatches = lists[filter];
   const filters: Array<{ filter: PicksFilter; label: string; value: number }> = [
     { filter: "all", label: "All", value: data.matches.length },
-    { filter: "missing", label: "Missing", value: missing.length },
-    { filter: "open", label: "Open", value: open.length },
-    { filter: "locked", label: "Locked", value: locked.length },
+    { filter: "missing", label: "Missing", value: lists.missing.length },
+    { filter: "open", label: "Open", value: lists.open.length },
+    { filter: "locked", label: "Locked", value: lists.locked.length },
   ];
 
   return (

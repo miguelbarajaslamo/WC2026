@@ -365,6 +365,23 @@ function MessageBubble({
   );
 }
 
+// Mention regex per profiles payload — building it per message render is
+// wasteful, and every MentionText shares the same one.
+const mentionRegexCache = new WeakMap<BootstrapData["profiles"], RegExp>();
+
+function mentionRegex(profiles: BootstrapData["profiles"]) {
+  let regex = mentionRegexCache.get(profiles);
+  if (!regex) {
+    const escaped = profiles
+      .map((profile) => profile.displayName)
+      .sort((a, b) => b.length - a.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    regex = new RegExp(`@(?:all\\b|${escaped.join("|")})`, "g");
+    mentionRegexCache.set(profiles, regex);
+  }
+  return regex;
+}
+
 // Highlight @DisplayName tokens for known pool members.
 function MentionText({
   data,
@@ -375,15 +392,11 @@ function MentionText({
   mine: boolean;
   text: string;
 }) {
-  const names = data.profiles
-    .map((profile) => profile.displayName)
-    .sort((a, b) => b.length - a.length);
-  if (names.length === 0) {
+  if (data.profiles.length === 0) {
     return <>{text}</>;
   }
 
-  const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`@(?:all\\b|${escaped.join("|")})`, "g");
+  const regex = mentionRegex(data.profiles);
   const parts: React.ReactNode[] = [];
   let last = 0;
   for (const match of text.matchAll(regex)) {

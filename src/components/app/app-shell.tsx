@@ -170,7 +170,8 @@ export function AppShell({
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 px-2 pb-3 pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
+      {/* No backdrop-blur here: compositing a blur over scrolling content janks mobile scroll. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white px-2 pb-3 pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
           {primaryNav.map((item) => {
             const Icon = item.icon;

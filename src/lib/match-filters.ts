@@ -65,10 +65,11 @@ export function filterFixturesMatches({
 }) {
   const normalizedQuery = (query ?? "").trim().toLowerCase();
   const now = new Date();
+  const teamById = new Map(data.teams.map((team) => [team.id, team]));
 
   return getVisibleMatches(data).filter((match) => {
-    const home = data.teams.find((team) => team.id === match.homeTeamId);
-    const away = data.teams.find((team) => team.id === match.awayTeamId);
+    const home = teamById.get(match.homeTeamId);
+    const away = teamById.get(match.awayTeamId);
     const label = [
       home?.name,
       away?.name,
