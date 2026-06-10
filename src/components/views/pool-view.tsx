@@ -2,14 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChevronRight, Pencil } from "lucide-react";
+import { ChevronRight, Coins, Pencil } from "lucide-react";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { InstallInstructions } from "@/components/app/install-instructions";
+import { PotSummary } from "@/components/app/pot-summary";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { getProfile } from "@/lib/data/selectors";
+import { formatKr } from "@/lib/pool-money";
+import type { Pool } from "@/lib/types";
 
 export function PoolView() {
   const { data, error, isLoading } = useBootstrap();
@@ -35,6 +38,12 @@ export function PoolView() {
         />
         <p className="mt-2 text-sm font-bold text-white/70">{data.pool.prizeNote}</p>
       </section>
+
+      <PotSummary data={data} />
+
+      {data.currentMemberRole === "admin" ? (
+        <PoolMoneySettings pool={data.pool} />
+      ) : null}
 
       <section className="rounded-lg border border-black/10 bg-white p-4">
         <h2 className="font-black">Rules</h2>
@@ -192,5 +201,110 @@ function PoolName({
         <p className="mt-1 text-xs font-bold text-red-300">{errorMessage}</p>
       ) : null}
     </div>
+  );
+}
+
+function PoolMoneySettings({ pool }: { pool: Pool }) {
+  const queryClient = useQueryClient();
+  const [fee, setFee] = useState(String(pool.entryFee || ""));
+  const [swish, setSwish] = useState(pool.swishNumber);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const dirty =
+    Number(fee || 0) !== pool.entryFee || swish.trim() !== pool.swishNumber;
+
+  async function save() {
+    const entryFee = Number(fee || 0);
+    if (!Number.isInteger(entryFee) || entryFee < 0) {
+      setErrorMessage("Insatsen måste vara ett heltal i kronor.");
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage("");
+    setMessage("");
+
+    const response = await fetch("/api/pools", {
+      body: JSON.stringify({ entryFee, poolId: pool.id, swishNumber: swish.trim() }),
+      headers: { "Content-Type": "application/json" },
+      method: "PATCH",
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setErrorMessage(payload.error ?? "Kunde inte spara.");
+      setSaving(false);
+      return;
+    }
+
+    await queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+    setMessage("Sparat.");
+    setSaving(false);
+  }
+
+  return (
+    <section className="rounded-lg border border-black/10 bg-white p-4">
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 place-items-center rounded-md bg-stone-100 text-stone-600">
+          <Coins size={20} />
+        </span>
+        <div>
+          <h2 className="font-black">Pott & betalning</h2>
+          <p className="text-sm font-bold text-stone-500">
+            Insats per person och Swish-nummer. Du bockar av betalda under Admin.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-stone-500">
+            Insats (kr/person)
+          </span>
+          <input
+            className="input"
+            inputMode="numeric"
+            onChange={(event) => setFee(event.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="0"
+            value={fee}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-stone-500">
+            Swish-nummer
+          </span>
+          <input
+            className="input"
+            inputMode="tel"
+            onChange={(event) => setSwish(event.target.value)}
+            placeholder="123 456 78 90"
+            value={swish}
+          />
+        </label>
+      </div>
+
+      <button
+        className="mt-3 h-11 w-full rounded-md bg-emerald-950 text-sm font-black text-white disabled:bg-stone-300 disabled:text-stone-500"
+        disabled={saving || !dirty}
+        onClick={() => void save()}
+        type="button"
+      >
+        {saving ? "Sparar..." : "Spara"}
+      </button>
+
+      <p className="mt-2 text-xs font-bold text-stone-500">
+        {Number(fee || 0) > 0
+          ? `Varje avbockad medlem lägger ${formatKr(Number(fee))} i potten.`
+          : "Sätt en insats för att visa potten i topplistan."}
+      </p>
+      {message ? (
+        <p className="mt-1 text-xs font-bold text-emerald-700">{message}</p>
+      ) : null}
+      {errorMessage ? (
+        <p className="mt-1 text-xs font-bold text-red-700">{errorMessage}</p>
+      ) : null}
+    </section>
   );
 }

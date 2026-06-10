@@ -115,17 +115,54 @@ async function createPool(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { name, poolId } = (await request.json()) as {
+  const { entryFee, name, poolId, swishNumber } = (await request.json()) as {
+    entryFee?: number;
     name?: string;
     poolId?: string;
+    swishNumber?: string;
   };
-  const poolName = name?.trim();
 
-  if (!poolId || !poolName || poolName.length < 2 || poolName.length > 60) {
-    return NextResponse.json(
-      { error: "Pool name must be 2-60 characters." },
-      { status: 400 },
-    );
+  if (!poolId) {
+    return NextResponse.json({ error: "Missing pool" }, { status: 400 });
+  }
+
+  const update: {
+    entry_fee?: number;
+    name?: string;
+    swish_number?: string | null;
+  } = {};
+
+  if (name !== undefined) {
+    const poolName = name.trim();
+    if (poolName.length < 2 || poolName.length > 60) {
+      return NextResponse.json(
+        { error: "Pool name must be 2-60 characters." },
+        { status: 400 },
+      );
+    }
+    update.name = poolName;
+  }
+
+  if (entryFee !== undefined) {
+    if (!Number.isInteger(entryFee) || entryFee < 0 || entryFee > 1_000_000) {
+      return NextResponse.json(
+        { error: "Entry fee must be a whole number of kronor." },
+        { status: 400 },
+      );
+    }
+    update.entry_fee = entryFee;
+  }
+
+  if (swishNumber !== undefined) {
+    const trimmed = swishNumber.trim();
+    if (trimmed.length > 40) {
+      return NextResponse.json({ error: "Swish number is too long." }, { status: 400 });
+    }
+    update.swish_number = trimmed || null;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   const supabase = await createSupabaseServerClient();
@@ -146,16 +183,13 @@ export async function PATCH(request: Request) {
 
   if (member?.role !== "admin") {
     return NextResponse.json(
-      { error: "Only the pool owner can rename the pool." },
+      { error: "Only the pool owner can change pool settings." },
       { status: 403 },
     );
   }
 
   const admin = createSupabaseAdminClient();
-  const { error } = await admin
-    .from("pools")
-    .update({ name: poolName })
-    .eq("id", poolId);
+  const { error } = await admin.from("pools").update(update).eq("id", poolId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

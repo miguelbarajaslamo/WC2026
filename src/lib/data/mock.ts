@@ -26,6 +26,8 @@ const pool: Pool = {
   scoringMode: "traditional",
   lockMinutesBeforeKickoff: 15,
   scorePredictionStages: [],
+  entryFee: 100,
+  swishNumber: "123 456 78 90",
 };
 
 const profiles: Profile[] = [

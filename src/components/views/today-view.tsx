@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Countdown } from "@/components/app/countdown";
@@ -12,8 +13,10 @@ import {
   getMissingPicksWithinDays,
   getVisibleMatches,
 } from "@/lib/data/selectors";
+import { formatKr, shouldNudgeSwish } from "@/lib/pool-money";
 import { DEFAULT_WARNING_DAYS, getWarningDays } from "@/lib/preferences";
 import { getLocalTimeZone, getNextLockMatch } from "@/lib/time";
+import type { BootstrapData } from "@/lib/types";
 
 export function TodayView() {
   const { data, error, isLoading, isFetching } = useBootstrap();
@@ -72,6 +75,8 @@ export function TodayView() {
           Times shown in your device timezone: {getLocalTimeZone()}
         </p>
       </section>
+
+      <SwishReminder data={data} />
 
       <TournamentSpecialsBanner data={data} />
 
@@ -133,5 +138,50 @@ export function TodayView() {
         </div>
       </Section>
     </div>
+  );
+}
+
+// "Swish the entry fee" nudge — shown only to members who aren't marked paid,
+// and only until the first match locks (the pay-by deadline).
+function SwishReminder({ data }: { data: BootstrapData }) {
+  const [copied, setCopied] = useState(false);
+  const { entryFee, swishNumber } = data.pool;
+
+  if (!shouldNudgeSwish(data)) {
+    return null;
+  }
+
+  async function copyNumber() {
+    try {
+      await navigator.clipboard.writeText(swishNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be blocked; the number is shown anyway.
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <h2 className="font-black text-stone-950">Betala insatsen</h2>
+      <p className="mt-1 text-sm font-bold text-stone-600">
+        Swisha {formatKr(entryFee)} till numret nedan innan första matchen låser.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="flex-1 rounded-md border border-amber-300 bg-white px-3 py-2 font-mono text-lg font-black tracking-wide text-stone-950">
+          {swishNumber}
+        </span>
+        <button
+          className="grid h-11 w-12 shrink-0 place-items-center rounded-md bg-stone-950 text-white"
+          onClick={() => void copyNumber()}
+          type="button"
+        >
+          {copied ? <Check size={18} /> : <Copy size={18} />}
+        </button>
+      </div>
+      <p className="mt-2 text-xs font-bold text-stone-500">
+        Pool-värden bockar av dig när betalningen kommit in.
+      </p>
+    </section>
   );
 }

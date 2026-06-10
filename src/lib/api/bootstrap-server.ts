@@ -37,6 +37,7 @@ type PoolMemberRow = {
 
 type PoolRow = {
   bonus_lock_at: string | null;
+  entry_fee: number | null;
   id: string;
   lock_minutes_before_kickoff: number;
   name: string;
@@ -44,6 +45,7 @@ type PoolRow = {
   scoring_locked_at: string | null;
   scoring_mode: "traditional" | "pot";
   score_prediction_stages: string[] | null;
+  swish_number: string | null;
 };
 
 type ProfileRow = {
@@ -255,6 +257,7 @@ function isSupportedBonusPickType(value: string): value is BonusPick["type"] {
 function mapPool(row: PoolRow): Pool {
   return {
     bonusLockAt: row.bonus_lock_at ?? undefined,
+    entryFee: row.entry_fee ?? 0,
     id: row.id,
     lockMinutesBeforeKickoff: row.lock_minutes_before_kickoff,
     name: row.name,
@@ -262,6 +265,7 @@ function mapPool(row: PoolRow): Pool {
     scoringLockedAt: row.scoring_locked_at ?? undefined,
     scoringMode: row.scoring_mode,
     scorePredictionStages: row.score_prediction_stages ?? [],
+    swishNumber: row.swish_number ?? "",
   };
 }
 
@@ -617,7 +621,7 @@ export async function buildSupabaseBootstrapData({
       supabase
         .from("pools")
         .select(
-          "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff,score_prediction_stages",
+          "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff,score_prediction_stages,entry_fee,swish_number",
         )
         .eq("id", currentMembership.pool_id)
         .single(),

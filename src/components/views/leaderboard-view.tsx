@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, BarChart3, Minus } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
+import { PotSummary } from "@/components/app/pot-summary";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 
 export function LeaderboardView() {
@@ -37,6 +38,8 @@ export function LeaderboardView() {
           Categories
         </Link>
       </section>
+
+      <PotSummary data={data} />
 
       <div className="space-y-2">
         {data.leaderboard.map((row) => (

@@ -161,6 +161,9 @@ export type Pool = {
   bonusLockAt?: string;
   lockMinutesBeforeKickoff: number;
   scorePredictionStages: string[];
+  // Pot: per-member entry fee (whole kronor) and the Swish number to pay it to.
+  entryFee: number;
+  swishNumber: string;
 };
 
 export type LeaderboardRow = {
