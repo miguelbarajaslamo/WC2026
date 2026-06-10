@@ -19,9 +19,9 @@ const ROWS: Array<{ body: string; key: PrefKey; title: string }> = [
     title: "Pick reminders",
   },
   {
-    body: "When picks close for a match that's about to kick off.",
+    body: "A last-chance nudge ~15 min before a match's picks lock.",
     key: "notificationMatchLocks",
-    title: "Match locks",
+    title: "Locking soon",
   },
   {
     body: "The final score when a match finishes.",

@@ -71,16 +71,16 @@ const LOOKAHEAD_MS = 48 * 60 * 60 * 1000;
 const CLOSE_BUFFER_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Detection windows for the event-based notifications.
-const JUST_LOCKED_MS = 10 * 60 * 1000;
+const LOCK_SOON_MS = 15 * 60 * 1000;
 const RECENT_FINISH_MS = 4 * 60 * 60 * 1000;
 
 // Summary payload when several of the same type are due for one user at once.
 function summaryPayload(type: string, count: number) {
   if (type === "match_lock") {
     return {
-      body: `${count} matches are starting — picks are locked.`,
-      title: "Picks locked",
-      url: "/",
+      body: `${count} matches lock soon — last chance to change.`,
+      title: "Picks lock soon",
+      url: "/picks",
     };
   }
   if (type === "full_time") {
@@ -259,7 +259,7 @@ Deno.serve(async (request) => {
 
   const matchColumns =
     "id,home_team_id,away_team_id,prediction_lock_at,kickoff_at,status,home_score,away_score";
-  const justLockedSince = new Date(now.getTime() - JUST_LOCKED_MS);
+  const lockSoonUntil = new Date(now.getTime() + LOCK_SOON_MS);
   const recentFinishSince = new Date(now.getTime() - RECENT_FINISH_MS);
 
   const [deadlineRes, lockedRes, finishedRes] = await Promise.all([
@@ -271,13 +271,13 @@ Deno.serve(async (request) => {
       .lte("prediction_lock_at", windowEnd.toISOString())
       .eq("status", "scheduled")
       .returns<MatchRow[]>(),
-    // Just locked (within the last 10 min) — picks-closed alert.
+    // Locking soon (within the next 15 min) — last-chance reminder.
     supabase
       .from("matches")
       .select(matchColumns)
-      .gt("prediction_lock_at", justLockedSince.toISOString())
-      .lte("prediction_lock_at", now.toISOString())
-      .in("status", ["scheduled", "live", "halftime"])
+      .gt("prediction_lock_at", now.toISOString())
+      .lte("prediction_lock_at", lockSoonUntil.toISOString())
+      .eq("status", "scheduled")
       .returns<MatchRow[]>(),
     // Recently finished — full-time score.
     supabase
@@ -292,18 +292,18 @@ Deno.serve(async (request) => {
   ]);
 
   const deadlineMatches = deadlineRes.data ?? [];
-  const lockedMatches = lockedRes.data ?? [];
+  const lockingSoonMatches = lockedRes.data ?? [];
   const finishedMatches = finishedRes.data ?? [];
 
   if (
     deadlineMatches.length === 0 &&
-    lockedMatches.length === 0 &&
+    lockingSoonMatches.length === 0 &&
     finishedMatches.length === 0
   ) {
     return Response.json({ created: 0, sent: 0 });
   }
 
-  const allMatches = [...deadlineMatches, ...lockedMatches, ...finishedMatches];
+  const allMatches = [...deadlineMatches, ...lockingSoonMatches, ...finishedMatches];
   const deadlineMatchIds = deadlineMatches.map((match) => match.id);
 
   const { data: members } = await supabase
@@ -407,15 +407,15 @@ Deno.serve(async (request) => {
     }
   }
 
-  // 2) Match-lock alerts (picks just closed). Event-based — delivered now.
+  // 2) Locking-soon reminders (~15 min before picks close). Delivered now.
   for (const userId of lockUserIds) {
-    for (const match of lockedMatches) {
+    for (const match of lockingSoonMatches) {
       jobs.push({
-        body: `${matchupOf(match)} — picks are now locked.`,
+        body: `${matchupOf(match)} locks soon — last chance to change your pick.`,
         match_id: match.id,
         notification_type: "match_lock",
         scheduled_for: nowIso,
-        title: "Picks locked",
+        title: "Picks lock soon",
         url: `/matches/${match.id}`,
         user_id: userId,
       });
