@@ -73,19 +73,26 @@ export function AppShell({
                 <ArrowLeft size={20} />
               </button>
             ) : null}
-            <Link className="min-w-0" href="/">
+            <Link className="flex min-w-0 items-center gap-2.5" href="/">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 alt="WORLD CUP PICKS"
-                className="h-7 w-auto"
-                height={200}
-                src="/logo-wordmark.png"
-                width={532}
+                className="h-11 w-auto shrink-0"
+                height={264}
+                src="/logo-cup.png"
+                width={156}
               />
-              <h1 className="mt-0.5 truncate text-xl font-black">{title}</h1>
-              {kicker ? (
-                <p className="truncate text-xs font-bold text-white/60">{kicker}</p>
-              ) : null}
+              <span className="min-w-0">
+                <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  WORLD CUP PICKS
+                </span>
+                <h1 className="truncate text-xl font-black leading-tight">{title}</h1>
+                {kicker ? (
+                  <span className="block truncate text-xs font-bold text-white/60">
+                    {kicker}
+                  </span>
+                ) : null}
+              </span>
             </Link>
           </div>
 
