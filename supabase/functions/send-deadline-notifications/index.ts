@@ -86,6 +86,13 @@ function summaryPayload(type: string, count: number) {
   if (type === "full_time") {
     return { body: `${count} matches just finished.`, title: "Full-time scores", url: "/" };
   }
+  if (type === "chat_mention") {
+    return {
+      body: `You were mentioned ${count} times in the pool chat.`,
+      title: "New mentions",
+      url: "/chat",
+    };
+  }
   return {
     body: `You have ${count} matches locking soon with no saved pick.`,
     title: "Picks locking soon",

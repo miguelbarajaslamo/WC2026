@@ -113,3 +113,53 @@ async function createPool(request: Request) {
 
   return NextResponse.json({ poolId: pool.id, inviteCode });
 }
+
+export async function PATCH(request: Request) {
+  const { name, poolId } = (await request.json()) as {
+    name?: string;
+    poolId?: string;
+  };
+  const poolName = name?.trim();
+
+  if (!poolId || !poolName || poolName.length < 2 || poolName.length > 60) {
+    return NextResponse.json(
+      { error: "Pool name must be 2-60 characters." },
+      { status: 400 },
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const { data: member } = await supabase
+    .from("pool_members")
+    .select("role")
+    .eq("pool_id", poolId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (member?.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only the pool owner can rename the pool." },
+      { status: 403 },
+    );
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
+    .from("pools")
+    .update({ name: poolName })
+    .eq("id", poolId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

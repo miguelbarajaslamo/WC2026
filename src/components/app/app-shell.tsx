@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ClipboardList,
   ListChecks,
+  MessageCircle,
   Settings,
   Shield,
   Table2,
@@ -26,6 +27,7 @@ const primaryNav = [
 ];
 
 const menuNav = [
+  { href: "/chat", icon: MessageCircle, label: "Chat" },
   { href: "/pool", icon: Users, label: "Pool" },
   { href: "/fixtures", icon: CalendarDays, label: "Fixtures" },
   { href: "/stats", icon: BarChart3, label: "Stats" },
@@ -96,6 +98,19 @@ export function AppShell({
             </Link>
           </div>
 
+          <div className="flex shrink-0 items-center gap-2">
+          <Link
+            aria-label="Open pool chat"
+            className={cn(
+              "grid size-11 place-items-center rounded-md ring-1",
+              pathname === "/chat"
+                ? "bg-white text-emerald-950 ring-white"
+                : "bg-white/10 text-white ring-white/15",
+            )}
+            href="/chat"
+          >
+            <MessageCircle size={20} />
+          </Link>
           <details className="relative">
             <summary
               aria-label="Open secondary navigation"
@@ -119,6 +134,7 @@ export function AppShell({
               })}
             </div>
           </details>
+          </div>
         </div>
       </header>
 
