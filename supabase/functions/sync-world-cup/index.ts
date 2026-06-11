@@ -354,17 +354,19 @@ async function runFormSync(
 }
 
 async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<SyncResult> {
-  // Skip the API entirely when nothing is in play: a match counts as "in
-  // window" if it's live/halftime, or kicked off in the last ~3.5h and isn't
-  // finished yet. This keeps idle minutes at zero API requests.
+  // Skip the API entirely when nothing is in play. Matches already live or at
+  // half-time stay in scope no matter how long ago they kicked off — they must
+  // be confirmed finished before we stop watching (a stuck "live" row would
+  // otherwise freeze scores forever). The 3.5h kickoff cutoff only bounds
+  // which *scheduled* matches can open the window.
   const windowStart = new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString();
   const windowEnd = new Date(Date.now() + 2 * 60 * 1000).toISOString();
   const { data: inWindow } = await supabase
     .from("matches")
     .select("id")
-    .in("status", ["live", "halftime", "scheduled"])
-    .gte("kickoff_at", windowStart)
-    .lte("kickoff_at", windowEnd)
+    .or(
+      `status.in.(live,halftime),and(status.eq.scheduled,kickoff_at.gte.${windowStart},kickoff_at.lte.${windowEnd})`,
+    )
     .limit(1);
 
   if (!inWindow || inWindow.length === 0) {
@@ -400,6 +402,34 @@ async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<S
       requestsUsed += 1;
 
       const syncTargets = await upsertLiveFixtures(supabase, liveFixtures.response ?? []);
+
+      // A fixture drops out of live:all the moment it goes FT, so the final
+      // whistle is easy to miss entirely. Any match our DB still has as
+      // live/halftime but the live feed no longer mentions gets re-fetched by
+      // id; the upsert then records its real status (FT/AET/PEN → finished)
+      // and the finished paths below pick it up like any other final.
+      const liveFeedFixtureIds = new Set(
+        (liveFixtures.response ?? [])
+          .filter((item) => item?.league?.id === 1)
+          .map((item) => item.fixture.id),
+      );
+      const { data: dbLiveMatches } = await supabase
+        .from("matches")
+        .select("api_football_fixture_id")
+        .in("status", ["live", "halftime"])
+        .not("api_football_fixture_id", "is", null);
+      const missingFixtureIds = (dbLiveMatches ?? [])
+        .map((row) => Number(row.api_football_fixture_id))
+        .filter((id) => Number.isFinite(id) && !liveFeedFixtureIds.has(id));
+
+      for (const fixtureId of missingFixtureIds) {
+        const byId = await fetchApiFootball("/fixtures", { id: fixtureId });
+        requestsUsed += 1;
+        const rescued = await upsertLiveFixtures(supabase, byId.response ?? []);
+        syncTargets.fixtureIds.push(...rescued.fixtureIds);
+        syncTargets.finishedFixtureIds.push(...rescued.finishedFixtureIds);
+        syncTargets.finishedMatchIds.push(...rescued.finishedMatchIds);
+      }
 
       for (const fixtureId of syncTargets.fixtureIds) {
         const events = await fetchApiFootball("/fixtures/events", { fixture: fixtureId });
