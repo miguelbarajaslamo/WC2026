@@ -1,10 +1,15 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Flag } from "@/components/ui/flag";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { StatLegend } from "@/components/app/stat-legend";
 import { useBootstrap } from "@/components/app/use-bootstrap";
+import { bootstrapQueryKey } from "@/lib/api/bootstrap";
+import { cn } from "@/lib/cn";
 import { getTeam } from "@/lib/data/selectors";
 
 const GROUP_LEGEND: Array<[string, string]> = [
@@ -35,7 +40,12 @@ export function GroupsView() {
         <h1 className="text-sm font-black uppercase tracking-wide text-stone-500">
           Group standings
         </h1>
-        <StatLegend items={GROUP_LEGEND} />
+        <div className="flex items-center gap-2">
+          {data.currentMemberRole === "admin" ? (
+            <RefreshStandingsButton poolId={data.pool.id} />
+          ) : null}
+          <StatLegend items={GROUP_LEGEND} />
+        </div>
       </div>
 
       {Object.entries(data.standings)
@@ -87,5 +97,86 @@ export function GroupsView() {
         </section>
       ))}
     </div>
+  );
+}
+
+// Subtle admin-only escape hatch for when the standings cron lags behind a
+// finished match (API-Football refreshes its standings with some delay).
+function RefreshStandingsButton({ poolId }: { poolId: string }) {
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<{ kind: "error" | "ok"; text: string } | null>(
+    null,
+  );
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showToast(kind: "error" | "ok", text: string) {
+    setToast({ kind, text });
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }
+
+  async function refresh() {
+    if (refreshing) {
+      return;
+    }
+    setRefreshing(true);
+
+    try {
+      const response = await fetch("/api/admin/refresh-standings", {
+        body: JSON.stringify({ poolId }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        showToast("error", body.error ?? "Could not refresh standings.");
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
+      showToast("ok", "Standings refreshed.");
+    } catch {
+      showToast("error", "Could not refresh standings.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        aria-label="Refresh standings from the data provider"
+        className="grid size-8 place-items-center rounded-md text-stone-400 hover:bg-stone-200 hover:text-stone-600 disabled:opacity-60"
+        disabled={refreshing}
+        onClick={() => void refresh()}
+        title="Refresh standings"
+        type="button"
+      >
+        <RefreshCw className={refreshing ? "animate-spin" : ""} size={15} />
+      </button>
+      {toast ? (
+        <div
+          className={cn(
+            "fixed inset-x-4 top-[calc(80px+var(--safe-top))] z-50 mx-auto max-w-md rounded-lg px-4 py-3 text-sm font-black text-white shadow-xl",
+            toast.kind === "ok" ? "bg-emerald-950" : "bg-red-700",
+          )}
+          role="status"
+        >
+          {toast.text}
+        </div>
+      ) : null}
+    </>
   );
 }
