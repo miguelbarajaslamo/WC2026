@@ -57,6 +57,20 @@ type JobRow = {
   user_id: string;
 };
 
+type MatchFollowRow = {
+  match_id: string;
+  user_id: string;
+};
+
+type MatchEventRow = {
+  id: string;
+  match_id: string;
+  elapsed_minutes: number | null;
+  team_id: string | null;
+  player_name: string | null;
+  event_type: string;
+};
+
 type QuietSettings = {
   enabled: boolean;
   start: number;
@@ -92,6 +106,15 @@ function summaryPayload(type: string, count: number) {
       title: "New mentions",
       url: "/chat",
     };
+  }
+  if (type === "follow_kickoff") {
+    return { body: `${count} followed matches kicked off.`, title: "Kickoff", url: "/" };
+  }
+  if (type === "follow_halftime") {
+    return { body: `Half-time in ${count} followed matches.`, title: "Half-time", url: "/" };
+  }
+  if (type === "follow_fulltime") {
+    return { body: `${count} followed matches finished.`, title: "Full-time", url: "/" };
   }
   return {
     body: `You have ${count} matches locking soon with no saved pick.`,
@@ -269,7 +292,7 @@ Deno.serve(async (request) => {
   const lockSoonUntil = new Date(now.getTime() + LOCK_SOON_MS);
   const recentFinishSince = new Date(now.getTime() - RECENT_FINISH_MS);
 
-  const [deadlineRes, lockedRes, finishedRes] = await Promise.all([
+  const [deadlineRes, lockedRes, finishedRes, followsRes] = await Promise.all([
     // Upcoming locks (deadline reminders) — up to 48h out so quiet hours can defer.
     supabase
       .from("matches")
@@ -296,21 +319,60 @@ Deno.serve(async (request) => {
       .not("home_score", "is", null)
       .not("away_score", "is", null)
       .returns<MatchRow[]>(),
+    // Match follows (kickoff/goals/cards/half-time/full-time subscribers).
+    supabase.from("match_follows").select("user_id,match_id").returns<MatchFollowRow[]>(),
   ]);
 
   const deadlineMatches = deadlineRes.data ?? [];
   const lockingSoonMatches = lockedRes.data ?? [];
   const finishedMatches = finishedRes.data ?? [];
+  const follows = followsRes.data ?? [];
+
+  // Followed matches that are in play (or just finished) drive live alerts.
+  const followedMatchIds = [...new Set(follows.map((follow) => follow.match_id))];
+  let followedActiveMatches: MatchRow[] = [];
+  let freshFollowEvents: MatchEventRow[] = [];
+  if (followedMatchIds.length > 0) {
+    const { data: activeMatches } = await supabase
+      .from("matches")
+      .select(matchColumns)
+      .in("id", followedMatchIds)
+      .or(
+        `status.in.(live,halftime),and(status.eq.finished,kickoff_at.gte.${recentFinishSince.toISOString()})`,
+      )
+      .returns<MatchRow[]>();
+    followedActiveMatches = activeMatches ?? [];
+
+    // Only events synced in the last 15 min: late followers (and the feature's
+    // own rollout) shouldn't trigger a backlog of pushes.
+    const activeIds = followedActiveMatches.map((match) => match.id);
+    if (activeIds.length > 0) {
+      const eventsSince = new Date(now.getTime() - 15 * 60 * 1000);
+      const { data: events } = await supabase
+        .from("match_events")
+        .select("id,match_id,elapsed_minutes,team_id,player_name,event_type")
+        .in("match_id", activeIds)
+        .gte("created_at", eventsSince.toISOString())
+        .returns<MatchEventRow[]>();
+      freshFollowEvents = events ?? [];
+    }
+  }
 
   if (
     deadlineMatches.length === 0 &&
     lockingSoonMatches.length === 0 &&
-    finishedMatches.length === 0
+    finishedMatches.length === 0 &&
+    followedActiveMatches.length === 0
   ) {
     return Response.json({ created: 0, sent: 0 });
   }
 
-  const allMatches = [...deadlineMatches, ...lockingSoonMatches, ...finishedMatches];
+  const allMatches = [
+    ...deadlineMatches,
+    ...lockingSoonMatches,
+    ...finishedMatches,
+    ...followedActiveMatches,
+  ];
   const deadlineMatchIds = deadlineMatches.map((match) => match.id);
 
   const { data: members } = await supabase
@@ -363,7 +425,7 @@ Deno.serve(async (request) => {
   const matchupOf = (match: MatchRow) =>
     `${nameOf(match.home_team_id)} vs ${nameOf(match.away_team_id)}`;
   const scoreOf = (match: MatchRow) =>
-    `${nameOf(match.home_team_id)} ${match.home_score}–${match.away_score} ${nameOf(match.away_team_id)}`;
+    `${nameOf(match.home_team_id)} ${match.home_score ?? 0}–${match.away_score ?? 0} ${nameOf(match.away_team_id)}`;
 
   const { data: predictions } =
     deadlineMatchIds.length > 0
@@ -440,6 +502,92 @@ Deno.serve(async (request) => {
         title: "Full time",
         url: `/matches/${match.id}`,
         user_id: userId,
+      });
+    }
+  }
+
+  // 4) Followed matches: kickoff, half-time, full-time, goals, cards.
+  // Explicit opt-in per match, so quiet hours don't apply. The unique
+  // (user, match, type) constraint dedups across cron runs.
+  const followedActiveById = new Map(
+    followedActiveMatches.map((match) => [match.id, match]),
+  );
+  const eventsByMatch = new Map<string, MatchEventRow[]>();
+  for (const event of freshFollowEvents) {
+    const list = eventsByMatch.get(event.match_id) ?? [];
+    list.push(event);
+    eventsByMatch.set(event.match_id, list);
+  }
+  const justKickedOffSince = now.getTime() - 10 * 60 * 1000;
+
+  for (const follow of follows) {
+    const match = followedActiveById.get(follow.match_id);
+    if (!match) {
+      continue;
+    }
+    const matchup = matchupOf(match);
+    const url = `/matches/${match.id}`;
+    const base = {
+      match_id: match.id,
+      scheduled_for: nowIso,
+      url,
+      user_id: follow.user_id,
+    };
+
+    if (
+      match.status === "live" &&
+      new Date(match.kickoff_at).getTime() >= justKickedOffSince
+    ) {
+      jobs.push({
+        ...base,
+        body: `${matchup} has kicked off.`,
+        notification_type: "follow_kickoff",
+        title: "Kickoff",
+      });
+    }
+
+    if (match.status === "halftime") {
+      jobs.push({
+        ...base,
+        body: `Half-time: ${scoreOf(match)}.`,
+        notification_type: "follow_halftime",
+        title: "Half-time",
+      });
+    }
+
+    // Skip when the full-time preference already covers this user.
+    if (match.status === "finished" && !fullTimeUserIds.has(follow.user_id)) {
+      jobs.push({
+        ...base,
+        body: `Full-time: ${scoreOf(match)}.`,
+        notification_type: "follow_fulltime",
+        title: "Full-time",
+      });
+    }
+
+    for (const event of eventsByMatch.get(match.id) ?? []) {
+      const player = event.player_name?.trim();
+      if (!player) {
+        continue;
+      }
+      const minute = event.elapsed_minutes ? `${event.elapsed_minutes}' ` : "";
+      const team = event.team_id ? ` (${nameOf(event.team_id)})` : "";
+      let body: string | null = null;
+      if (event.event_type === "goal") {
+        body = `⚽ ${minute}${player}${team} — ${scoreOf(match)}`;
+      } else if (event.event_type === "yellow_card") {
+        body = `🟨 ${minute}${player}${team}`;
+      } else if (event.event_type === "red_card") {
+        body = `🟥 ${minute}${player}${team}`;
+      }
+      if (!body) {
+        continue;
+      }
+      jobs.push({
+        ...base,
+        body,
+        notification_type: `follow_event:${event.id}`,
+        title: matchup,
       });
     }
   }

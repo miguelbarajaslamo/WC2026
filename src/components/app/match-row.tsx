@@ -110,14 +110,22 @@ export function MatchRow({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-black/10 pt-3 text-xs">
-        <span className="font-bold text-stone-600">
-          {predictionLabelPrefix}:{" "}
-          <strong className={prediction ? "text-stone-950" : "text-red-700"}>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-black/10 pt-2.5">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-stone-500">
+            {predictionLabelPrefix}
+          </span>
+          <span
+            className={`truncate rounded-md px-2.5 py-1 text-sm font-black ${
+              prediction
+                ? "bg-emerald-100 text-emerald-950"
+                : "bg-red-100 text-red-800"
+            }`}
+          >
             {pickLabel}
-          </strong>
+          </span>
         </span>
-        <span className="font-black uppercase tracking-wide text-stone-500">
+        <span className="shrink-0 text-xs font-black uppercase tracking-wide text-stone-500">
           {locked ? "Locked" : "Open"}
         </span>
       </div>

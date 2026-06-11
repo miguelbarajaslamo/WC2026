@@ -7,6 +7,7 @@ import { Countdown } from "@/components/app/countdown";
 import { Section } from "@/components/ui/section";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { MatchRow } from "@/components/app/match-row";
+import { PullToRefresh } from "@/components/app/pull-to-refresh";
 import { TournamentSpecialsBanner } from "@/components/app/tournament-specials-banner";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import {
@@ -46,6 +47,7 @@ export function TodayView() {
   )?.rank;
 
   return (
+    <PullToRefresh>
     <div className="space-y-5">
       <section className="rounded-lg bg-[#022c22] p-4 text-white shadow-sm">
         <div className="flex items-start justify-between gap-4">
@@ -138,6 +140,7 @@ export function TodayView() {
         </div>
       </Section>
     </div>
+    </PullToRefresh>
   );
 }
 

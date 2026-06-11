@@ -138,7 +138,9 @@ export function ChatView() {
     if (!poolId || !latestMessageAt) {
       return;
     }
-    setChatLastSeen(poolId, new Date(latestMessageAt).getTime());
+    // +1ms: JS Date truncates Postgres microseconds, so without it the newest
+    // seen message still satisfies created_at > lastSeen and shows as unread.
+    setChatLastSeen(poolId, new Date(latestMessageAt).getTime() + 1);
     void queryClient.invalidateQueries({ queryKey: chatUnreadQueryKey(poolId) });
   }, [poolId, latestMessageAt, queryClient]);
 

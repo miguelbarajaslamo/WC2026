@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { Flag } from "@/components/ui/flag";
+import { FollowStar } from "@/components/app/follow-star";
 import { PredictionForm } from "@/components/app/prediction-form";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -19,7 +20,32 @@ import {
   isMatchLocked,
 } from "@/lib/data/selectors";
 import { predictionResultLabel } from "@/lib/predictions";
+import { matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
+import type { MatchEvent } from "@/lib/types";
+
+// Goals and cards only — substitutions and unmapped events (VAR etc., which the
+// sync falls back to "goal" with no player) are noise in a picks app.
+function eventIcon(event: MatchEvent) {
+  if (event.type === "yellow_card") {
+    return "🟨";
+  }
+  if (event.type === "red_card") {
+    return "🟥";
+  }
+  return "⚽";
+}
+
+function goalDetail(event: MatchEvent) {
+  const detail = event.detail?.toLowerCase() ?? "";
+  if (detail.includes("own")) {
+    return " (own goal)";
+  }
+  if (detail.includes("penalty")) {
+    return detail.includes("missed") ? " (missed penalty)" : " (penalty)";
+  }
+  return "";
+}
 
 export function MatchDetailView({
   from,
@@ -47,9 +73,18 @@ export function MatchDetailView({
 
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
-  const events = getMatchEvents(data, match.id);
+  // Goals and cards with a named player; drop substitutions and the nameless
+  // fallback events the sync can produce (VAR reviews etc.).
+  const events = getMatchEvents(data, match.id).filter(
+    (event) =>
+      event.type !== "substitution" && event.playerName && event.playerName.trim(),
+  );
   const predictions = getMatchPredictions(data, match.id);
   const locked = isMatchLocked(match);
+  const useScore = matchUsesScorePrediction(
+    data.pool.scorePredictionStages,
+    match.stage,
+  );
   const distribution = predictions.reduce(
     (counts, prediction) => {
       counts[prediction.predictedResult] += 1;
@@ -79,7 +114,12 @@ export function MatchDetailView({
       <section className="rounded-lg bg-[#022c22] p-4 text-white">
         <div className="mb-4 flex items-center justify-between">
           <StatusPill status={match.status} />
-          <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
+            {match.status !== "finished" && data.authMode !== "demo" ? (
+              <FollowStar matchId={match.id} userId={data.currentUserId} />
+            ) : null}
+          </div>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
           <Link className="space-y-2" href={`/teams/${home.id}`}>
@@ -119,15 +159,21 @@ export function MatchDetailView({
               const team = getTeam(data, event.teamId);
               return (
                 <div
-                  className="grid grid-cols-[44px_28px_1fr] items-center gap-3 border-b border-black/10 pb-3 last:border-0 last:pb-0"
+                  className="grid grid-cols-[36px_22px_28px_1fr] items-center gap-2.5 border-b border-black/10 pb-3 last:border-0 last:pb-0"
                   key={event.id}
                 >
                   <span className="font-mono text-sm font-black">
                     {event.minute}&apos;
                   </span>
+                  <span aria-hidden className="text-base leading-none">
+                    {eventIcon(event)}
+                  </span>
                   <Flag code={team.iso2} label={team.name} size="sm" />
                   <p className="text-sm font-bold">
                     {event.playerName}
+                    {event.type === "goal" ? (
+                      <span className="text-stone-500">{goalDetail(event)}</span>
+                    ) : null}
                     {event.assistName ? (
                       <span className="block text-xs text-stone-500">
                         Assist: {event.assistName}
@@ -180,9 +226,12 @@ export function MatchDetailView({
                   <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-black uppercase text-emerald-950">
                     {resultLabel}
                   </span>
-                  <span className="font-mono text-lg font-black">
-                    {prediction.homeScore}-{prediction.awayScore}
-                  </span>
+                  {/* Score guesses only mean something when the stage scores them. */}
+                  {useScore ? (
+                    <span className="font-mono text-lg font-black">
+                      {prediction.homeScore}-{prediction.awayScore}
+                    </span>
+                  ) : null}
                 </div>
               );
             })}
