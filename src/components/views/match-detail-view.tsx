@@ -73,11 +73,13 @@ export function MatchDetailView({
 
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
-  // Goals and cards with a named player; drop substitutions and the nameless
-  // fallback events the sync can produce (VAR reviews etc.).
+  // Goals and cards with a named player; substitutions and VAR reversals
+  // (disallowed goals, missed penalties) are noise in a picks app.
   const events = getMatchEvents(data, match.id).filter(
     (event) =>
-      event.type !== "substitution" && event.playerName && event.playerName.trim(),
+      ["goal", "yellow_card", "red_card"].includes(event.type) &&
+      event.playerName &&
+      event.playerName.trim(),
   );
   const predictions = getMatchPredictions(data, match.id);
   const locked = isMatchLocked(match);

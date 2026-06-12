@@ -77,7 +77,7 @@ const data = {
     { groupName: "Group A", id: "mex", name: "Mexico", shortName: "MEX" },
     { groupName: "Group A", id: "can", name: "Canada", shortName: "CAN" },
   ],
-} as BootstrapData;
+} as unknown as BootstrapData;
 
 describe("sortedLiveStandings", () => {
   it("does not treat Group Stage as Group S", () => {

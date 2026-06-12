@@ -10,7 +10,7 @@ export type PredictionResult = "home" | "draw" | "away";
 
 export type ScoringMode = "traditional" | "pot";
 
-export type EventType = "goal" | "yellow_card" | "red_card" | "substitution";
+export type EventType = "goal" | "yellow_card" | "red_card" | "substitution" | "var";
 
 export const supportedBonusPickTypes = [
   "champion",

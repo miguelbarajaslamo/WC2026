@@ -481,6 +481,15 @@ async function runReferenceSync(
 ): Promise<SyncResult> {
   let requestsUsed = 0;
 
+  // Snapshot which matches were already final, so we can tell which ones the
+  // full-schedule upsert below flips to finished (e.g. a final the live loop
+  // missed entirely during an outage) — those still need events/player stats.
+  const { data: finishedBefore } = await supabase
+    .from("matches")
+    .select("id")
+    .eq("status", "finished");
+  const previouslyFinished = new Set((finishedBefore ?? []).map((row) => row.id));
+
   const fixtures = await fetchApiFootball("/fixtures", {
     league: 1,
     season: 2026,
@@ -500,9 +509,30 @@ async function runReferenceSync(
   // provider keeps ownership of the qualification flag set above.
   await recalculateGroupStandings(supabase);
 
-  // Catch-up scoring: if the live loop missed a final (outage, provider lag),
-  // the full-schedule upsert above is what flips it to finished — so settle
-  // the points here too. Idempotent for already-scored matches.
+  // Catch-up for finals the live loop missed (outage, provider lag): the
+  // full-schedule upsert above is what flipped them to finished, so fetch
+  // their events and player stats here — they'd otherwise wait for the
+  // 6-hourly post-match cron.
+  const newlyFinished = syncTargets.finishedMatchIds
+    .map((matchId, index) => ({
+      fixtureId: syncTargets.finishedFixtureIds[index],
+      matchId,
+    }))
+    .filter((pair) => pair.fixtureId && !previouslyFinished.has(pair.matchId));
+
+  for (const { fixtureId } of newlyFinished) {
+    const events = await fetchApiFootball("/fixtures/events", { fixture: fixtureId });
+    requestsUsed += 1;
+    await upsertFixtureEvents(supabase, fixtureId, events.response ?? []);
+
+    const playerStats = await fetchApiFootball("/fixtures/players", {
+      fixture: fixtureId,
+    });
+    requestsUsed += 1;
+    await upsertFixturePlayerStats(supabase, fixtureId, playerStats.response ?? []);
+  }
+
+  // Settle points too. Idempotent for already-scored matches.
   if (syncTargets.finishedMatchIds.length > 0) {
     await recalculateFinishedFixtures(supabase, syncTargets.finishedMatchIds);
   }
@@ -1372,6 +1402,17 @@ function mapEventType(type: string, detail = "") {
 
   if (normalized.includes("subst")) {
     return "substitution";
+  }
+
+  // VAR reversals and missed penalties must not count as goals — the score
+  // comes from the fixture, and the UI/notifications treat "goal" as real.
+  if (
+    normalized.includes("disallowed") ||
+    normalized.includes("cancelled") ||
+    normalized.includes("missed penalty") ||
+    type.toLowerCase() === "var"
+  ) {
+    return "var";
   }
 
   return "goal";
