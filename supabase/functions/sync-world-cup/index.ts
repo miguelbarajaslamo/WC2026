@@ -500,6 +500,13 @@ async function runReferenceSync(
   // provider keeps ownership of the qualification flag set above.
   await recalculateGroupStandings(supabase);
 
+  // Catch-up scoring: if the live loop missed a final (outage, provider lag),
+  // the full-schedule upsert above is what flips it to finished — so settle
+  // the points here too. Idempotent for already-scored matches.
+  if (syncTargets.finishedMatchIds.length > 0) {
+    await recalculateFinishedFixtures(supabase, syncTargets.finishedMatchIds);
+  }
+
   return {
     message: `Reference schedule synced: ${syncTargets.fixtureIds.length} fixtures.`,
     requestsUsed,
@@ -705,13 +712,59 @@ async function upsertCountryCardBonusOptions(
 async function recalculateGroupStandings(
   supabase: ReturnType<typeof createClient>,
 ) {
-  const { data: groupMatches } = await supabase
-    .from("matches")
-    .select("home_team_id,away_team_id,home_score,away_score,status,group_name")
-    .not("group_name", "is", null);
+  // The provider stopped putting the group letter in the fixture round
+  // ("Group Stage - 1"), so matches can't tell us their group. Teams can:
+  // teams.group_name comes from the provider's standings payload. A match
+  // belongs to a group when both its teams agree on one.
+  const [{ data: teams }, { data: allMatches }] = await Promise.all([
+    supabase
+      .from("teams")
+      .select("id,group_name")
+      .not("group_name", "is", null),
+    supabase
+      .from("matches")
+      .select("id,home_team_id,away_team_id,home_score,away_score,status,group_name,stage"),
+  ]);
 
-  if (!groupMatches || groupMatches.length === 0) {
+  const teamGroup = new Map(
+    (teams ?? []).map((team) => [String(team.id), team.group_name as string]),
+  );
+  const groupOf = (match: {
+    group_name: string | null;
+    home_team_id: string | null;
+    away_team_id: string | null;
+  }) => {
+    const fromMatch = normalizeGroupName(match.group_name);
+    if (fromMatch) {
+      return fromMatch;
+    }
+    const home = teamGroup.get(String(match.home_team_id));
+    const away = teamGroup.get(String(match.away_team_id));
+    return home && home === away ? home : null;
+  };
+
+  const groupMatches = (allMatches ?? [])
+    .filter((match) => /group/i.test(match.stage ?? ""))
+    .map((match) => ({ ...match, resolved_group: groupOf(match) }))
+    .filter(
+      (match): match is typeof match & { resolved_group: string } =>
+        match.resolved_group !== null,
+    );
+
+  if (groupMatches.length === 0) {
     return;
+  }
+
+  // Backfill the resolved group onto matches that lost it, so match cards can
+  // show "Group F" again instead of the raw round label.
+  const needsBackfill = groupMatches.filter(
+    (match) => normalizeGroupName(match.group_name) !== match.resolved_group,
+  );
+  for (const match of needsBackfill) {
+    await supabase
+      .from("matches")
+      .update({ group_name: match.resolved_group })
+      .eq("id", match.id);
   }
 
   type Tally = {
@@ -744,7 +797,7 @@ async function recalculateGroupStandings(
   };
 
   for (const match of groupMatches) {
-    const groupName = match.group_name as string;
+    const groupName = match.resolved_group;
     // Every group team gets a row, even before it has played.
     const home = ensure(String(match.home_team_id), groupName);
     const away = ensure(String(match.away_team_id), groupName);

@@ -1,0 +1,11 @@
+project_id = "mdwssqojxiejeyokuvgg"
+
+# Both functions authenticate with CRON_SECRET (a plain bearer token, not a
+# Supabase JWT), so the gateway must not enforce JWT verification. Pinning it
+# here keeps redeploys/config syncs from silently re-enabling it — that outage
+# killed all syncs and notifications for 11 hours on June 12.
+[functions.sync-world-cup]
+verify_jwt = false
+
+[functions.send-deadline-notifications]
+verify_jwt = false
