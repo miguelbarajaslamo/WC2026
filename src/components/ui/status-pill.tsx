@@ -3,7 +3,7 @@ import type { MatchStatus } from "@/lib/types";
 
 const statusCopy: Record<MatchStatus, string> = {
   cancelled: "Cancelled",
-  finished: "Final",
+  finished: "FT",
   halftime: "Half-time",
   live: "Live",
   postponed: "Postponed",
