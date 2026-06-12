@@ -29,7 +29,7 @@ import {
 
 type PoolMemberRow = {
   joined_at: string;
-  paid: boolean;
+  paid?: boolean | null;
   pool_id: string;
   role: "admin" | "player";
   user_id: string;
@@ -37,30 +37,30 @@ type PoolMemberRow = {
 
 type PoolRow = {
   bonus_lock_at: string | null;
-  entry_fee: number | null;
+  entry_fee?: number | null;
   id: string;
   lock_minutes_before_kickoff: number;
   name: string;
   prize_note: string | null;
   scoring_locked_at: string | null;
   scoring_mode: "traditional" | "pot";
-  score_prediction_stages: string[] | null;
-  swish_number: string | null;
+  score_prediction_stages?: string[] | null;
+  swish_number?: string | null;
 };
 
 type ProfileRow = {
   avatar_color: string;
-  avatar_url: string | null;
+  avatar_url?: string | null;
   display_name: string;
   id: string;
   notification_deadlines: boolean | null;
   notification_live_scores: boolean | null;
-  notification_match_locks: boolean | null;
-  notification_full_time: boolean | null;
-  quiet_hours_enabled: boolean | null;
-  quiet_hours_start: number | null;
-  quiet_hours_end: number | null;
-  timezone: string | null;
+  notification_match_locks?: boolean | null;
+  notification_full_time?: boolean | null;
+  quiet_hours_enabled?: boolean | null;
+  quiet_hours_start?: number | null;
+  quiet_hours_end?: number | null;
+  timezone?: string | null;
 };
 
 type TeamRow = {
@@ -70,7 +70,7 @@ type TeamRow = {
   iso2: string | null;
   name: string;
   short_name: string;
-  recent_form: Team["recentForm"] | null;
+  recent_form?: Team["recentForm"] | null;
 };
 
 type PlayerRow = {
@@ -87,7 +87,7 @@ type TeamSquadMemberRow = {
   position: string | null;
   shirt_number: number | null;
   team_id: string;
-  pre_wc_stats: TeamSquadMember["preWcStats"] | null;
+  pre_wc_stats?: TeamSquadMember["preWcStats"] | null;
 };
 
 type MatchRow = {
@@ -561,6 +561,41 @@ async function selectMany<T>(
   return data ?? [];
 }
 
+function isMissingColumnError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("column") || message.includes("could not find");
+}
+
+async function requireSingleWithColumnFallback<T>(
+  primary: () => PromiseLike<{ data: T | null; error: { message: string } | null }>,
+  fallback: () => PromiseLike<{ data: T | null; error: { message: string } | null }>,
+) {
+  try {
+    return await requireSingle<T>(primary());
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    return requireSingle<T>(fallback());
+  }
+}
+
+async function selectManyWithColumnFallback<T>(
+  primary: () => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  fallback: () => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+) {
+  try {
+    return await selectMany<T>(primary());
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    return selectMany<T>(fallback());
+  }
+}
+
 // Supabase caps a single query at 1000 rows, so tables that can exceed that
 // (players, squads, bonus options, in-tournament events/stats) must be paged
 // or they silently truncate — e.g. dropping every top-scorer pick option.
@@ -617,11 +652,18 @@ export async function buildSupabaseBootstrapData({
   }
 
   const pool = mapPool(
-    await requireSingle<PoolRow>(
-      supabase
+    await requireSingleWithColumnFallback<PoolRow>(
+      () => supabase
         .from("pools")
         .select(
           "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff,score_prediction_stages,entry_fee,swish_number",
+        )
+        .eq("id", currentMembership.pool_id)
+        .single(),
+      () => supabase
+        .from("pools")
+        .select(
+          "id,name,prize_note,scoring_mode,scoring_locked_at,bonus_lock_at,lock_minutes_before_kickoff",
         )
         .eq("id", currentMembership.pool_id)
         .single(),
@@ -646,16 +688,23 @@ export async function buildSupabaseBootstrapData({
     syncRuns,
     adminOverrides,
   ] = await Promise.all([
-    selectMany<PoolMemberRow>(
-      supabase
+    selectManyWithColumnFallback<PoolMemberRow>(
+      () => supabase
         .from("pool_members")
         .select("pool_id,user_id,role,joined_at,paid")
         .eq("pool_id", pool.id),
+      () => supabase
+        .from("pool_members")
+        .select("pool_id,user_id,role,joined_at")
+        .eq("pool_id", pool.id),
     ),
-    selectMany<TeamRow>(
-      supabase
+    selectManyWithColumnFallback<TeamRow>(
+      () => supabase
         .from("teams")
         .select("id,name,short_name,iso2,group_name,flag_url,recent_form"),
+      () => supabase
+        .from("teams")
+        .select("id,name,short_name,iso2,group_name,flag_url"),
     ),
     selectAllPaged<PlayerRow>((from, to) =>
       supabase
@@ -663,11 +712,19 @@ export async function buildSupabaseBootstrapData({
         .select("id,name,photo_url,nationality,position")
         .range(from, to),
     ),
-    selectAllPaged<TeamSquadMemberRow>((from, to) =>
-      supabase
-        .from("team_squad_members")
-        .select("team_id,player_id,shirt_number,position,active,pre_wc_stats")
-        .range(from, to),
+    selectAllPaged<TeamSquadMemberRow>(async (from, to) =>
+      selectManyWithColumnFallback<TeamSquadMemberRow>(
+        () =>
+          supabase
+            .from("team_squad_members")
+            .select("team_id,player_id,shirt_number,position,active,pre_wc_stats")
+            .range(from, to),
+        () =>
+          supabase
+            .from("team_squad_members")
+            .select("team_id,player_id,shirt_number,position,active")
+            .range(from, to),
+      ).then((data) => ({ data, error: null })),
     ),
     selectMany<MatchRow>(
       supabase
@@ -761,15 +818,21 @@ export async function buildSupabaseBootstrapData({
 
   const members = memberRows.map((member) => ({
     joinedAt: member.joined_at,
-    paid: member.paid,
+    paid: member.paid ?? false,
     role: member.role,
     userId: member.user_id,
   }));
-  const profiles = await selectMany<ProfileRow>(
-    supabase
+  const profiles = await selectManyWithColumnFallback<ProfileRow>(
+    () => supabase
       .from("profiles")
       .select(
         "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
+      )
+      .in("id", members.map((member) => member.userId)),
+    () => supabase
+      .from("profiles")
+      .select(
+        "id,display_name,avatar_color,notification_deadlines,notification_live_scores",
       )
       .in("id", members.map((member) => member.userId)),
   );

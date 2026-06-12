@@ -633,6 +633,7 @@ async function upsertLiveFixtures(
     const kickoffAt = item.fixture.date;
     const homeTeam = normalizeFixtureTeam(item, "home");
     const awayTeam = normalizeFixtureTeam(item, "away");
+    const groupName = groupNameFromRound(item.league.round);
     const predictionLockAt = new Date(
       new Date(kickoffAt).getTime() - 15 * 60 * 1000,
     ).toISOString();
@@ -643,7 +644,6 @@ async function upsertLiveFixtures(
       away_team_id: awayTeam.id,
       city: item.fixture.venue?.city,
       elapsed_minutes: item.fixture.status.elapsed,
-      group_name: groupNameFromRound(item.league.round),
       home_score: item.goals.home,
       home_team_id: homeTeam.id,
       id: String(item.fixture.id),
@@ -656,6 +656,7 @@ async function upsertLiveFixtures(
       updated_at: new Date().toISOString(),
       venue: item.fixture.venue?.name,
       winner: determineResultFromNullableScores(item.goals.home, item.goals.away),
+      ...(groupName !== null && { group_name: groupName }),
     };
   });
 
@@ -810,19 +811,27 @@ async function upsertStandings(
     return;
   }
 
+  const { data: existingTeams } = await supabase
+    .from("teams")
+    .select("id,group_name");
+  const existingGroupByTeam = new Map(
+    (existingTeams ?? []).map((team) => [String(team.id), team.group_name as string | null]),
+  );
+
   const teamRows = standings
     .filter((standing) => standing.team?.id && standing.team.name)
     .map((standing) => {
       const teamName = standing.team?.name ?? "TBD";
       const iso2 = iso2FromTeamName(teamName);
+      const providerGroup = normalizeGroupName(standing.group);
       return {
         flag_url: standing.team?.logo,
-        group_name: standing.group ?? null,
         id: String(standing.team?.id),
         name: teamName,
         short_name: shortNameFromTeamName(teamName),
         // Omit iso2 when unknown so the upsert doesn't overwrite good DB data with null.
         ...(iso2 !== null && { iso2 }),
+        ...(providerGroup !== null && { group_name: providerGroup }),
       };
     });
 
@@ -835,20 +844,28 @@ async function upsertStandings(
   const rows = (pools ?? []).flatMap((pool) =>
     standings
       .filter((standing) => standing.team?.id)
-      .map((standing) => ({
-        drawn: standing.all?.draw ?? 0,
-        goals_against: standing.all?.goals?.against ?? 0,
-        goals_for: standing.all?.goals?.for ?? 0,
-        group_name: standing.group ?? "World Cup",
-        lost: standing.all?.lose ?? 0,
-        played: standing.all?.played ?? 0,
-        points: standing.points ?? 0,
-        pool_id: pool.id,
-        qualification: mapQualification(standing.description),
-        team_id: String(standing.team?.id),
-        updated_at: new Date().toISOString(),
-        won: standing.all?.win ?? 0,
-      })),
+      .map((standing) => {
+        const teamId = String(standing.team?.id);
+        const groupName =
+          normalizeGroupName(standing.group) ??
+          existingGroupByTeam.get(teamId) ??
+          "Ungrouped";
+
+        return {
+          drawn: standing.all?.draw ?? 0,
+          goals_against: standing.all?.goals?.against ?? 0,
+          goals_for: standing.all?.goals?.for ?? 0,
+          group_name: groupName,
+          lost: standing.all?.lose ?? 0,
+          played: standing.all?.played ?? 0,
+          points: standing.points ?? 0,
+          pool_id: pool.id,
+          qualification: mapQualification(standing.description),
+          team_id: teamId,
+          updated_at: new Date().toISOString(),
+          won: standing.all?.win ?? 0,
+        };
+      }),
   );
 
   if (rows.length > 0) {
@@ -1284,9 +1301,13 @@ function mapQualification(description?: string | null) {
   return "possible";
 }
 
-function groupNameFromRound(round?: string) {
-  const match = round?.match(/Group [A-Z]/i);
+function normalizeGroupName(value?: string | null) {
+  const match = value?.match(/Group [A-Z]/i);
   return match?.[0] ?? null;
+}
+
+function groupNameFromRound(round?: string) {
+  return normalizeGroupName(round);
 }
 
 function mapEventType(type: string, detail = "") {

@@ -759,6 +759,12 @@ alter table public.team_squad_members
   add column if not exists pre_wc_stats jsonb not null default '{}'::jsonb;
 alter table public.pools
   add column if not exists score_prediction_stages text[] not null default '{}'::text[];
+alter table public.pools
+  add column if not exists entry_fee integer not null default 0,
+  add column if not exists swish_number text;
+
+alter table public.pool_members
+  add column if not exists paid boolean not null default false;
 
 alter table public.matches add column if not exists venue text;
 alter table public.matches add column if not exists city text;
@@ -772,6 +778,14 @@ alter table public.profiles
   add column if not exists notification_live_scores boolean not null default false;
 alter table public.profiles
   add column if not exists avatar_url text;
+alter table public.profiles
+  add column if not exists notification_match_locks boolean not null default false,
+  add column if not exists notification_full_time boolean not null default false;
+alter table public.profiles
+  add column if not exists quiet_hours_enabled boolean not null default false,
+  add column if not exists quiet_hours_start smallint not null default 9,
+  add column if not exists quiet_hours_end smallint not null default 23,
+  add column if not exists timezone text;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

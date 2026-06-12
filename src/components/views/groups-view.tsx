@@ -11,6 +11,7 @@ import { useBootstrap } from "@/components/app/use-bootstrap";
 import { bootstrapQueryKey } from "@/lib/api/bootstrap";
 import { cn } from "@/lib/cn";
 import { getTeam } from "@/lib/data/selectors";
+import { sortedLiveStandings } from "@/lib/standings";
 
 const GROUP_LEGEND: Array<[string, string]> = [
   ["P", "Played"],
@@ -34,6 +35,11 @@ export function GroupsView() {
     return <ErrorState message={error.message} />;
   }
 
+  const liveStandings = sortedLiveStandings(data);
+  const hasLiveMatches = data.matches.some((match) =>
+    ["halftime", "live"].includes(match.status),
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -47,8 +53,13 @@ export function GroupsView() {
           <StatLegend items={GROUP_LEGEND} />
         </div>
       </div>
+      <p className="text-xs font-bold text-stone-500">
+        {hasLiveMatches
+          ? "Live table: includes current live and half-time scores as if they finish now."
+          : "Tables are derived from the current match results."}
+      </p>
 
-      {Object.entries(data.standings)
+      {Object.entries(liveStandings)
         .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
         .map(([groupName, rows]) => (
         <section

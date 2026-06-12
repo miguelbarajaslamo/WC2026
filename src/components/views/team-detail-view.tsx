@@ -11,6 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-stat
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { cn } from "@/lib/cn";
 import { getVisibleMatches } from "@/lib/data/selectors";
+import { sortedLiveStandings } from "@/lib/standings";
 import type { BootstrapData } from "@/lib/types";
 
 const GROUP_RECORD_LEGEND: Array<[string, string]> = [
@@ -54,7 +55,7 @@ export function TeamDetailView({ teamId }: { teamId: string }) {
   const fixtures = getVisibleMatches(data).filter(
     (match) => match.homeTeamId === team.id || match.awayTeamId === team.id,
   );
-  const standings = Object.values(data.standings)
+  const standings = Object.values(sortedLiveStandings(data))
     .flat()
     .find((row) => row.teamId === team.id);
 
