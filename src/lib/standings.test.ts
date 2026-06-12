@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortedLiveStandings } from "@/lib/standings";
+import { normalizeWorldCupGroupName, sortedLiveStandings } from "@/lib/standings";
 import type { BootstrapData, Match } from "@/lib/types";
 
 const baseMatch = {
@@ -80,6 +80,12 @@ const data = {
 } as BootstrapData;
 
 describe("sortedLiveStandings", () => {
+  it("does not treat Group Stage as Group S", () => {
+    expect(normalizeWorldCupGroupName("Group Stage - 1")).toBeNull();
+    expect(normalizeWorldCupGroupName("Group S")).toBeNull();
+    expect(normalizeWorldCupGroupName("Group L")).toBe("Group L");
+  });
+
   it("uses team groups instead of bad provider grouping", () => {
     expect(Object.keys(sortedLiveStandings(data)).sort()).toEqual([
       "Group A",

@@ -22,6 +22,7 @@ import type {
   TeamSquadMember,
   TournamentPlayerStatSnapshot,
 } from "@/lib/types";
+import { normalizeWorldCupGroupName } from "@/lib/standings";
 import {
   aggregateCategoryLeaderboards,
   type PlayerStatSource,
@@ -289,7 +290,7 @@ function mapProfile(row: ProfileRow): Profile {
 function mapTeam(row: TeamRow): Team {
   return {
     flagUrl: row.flag_url ?? undefined,
-    groupName: row.group_name ?? undefined,
+    groupName: normalizeWorldCupGroupName(row.group_name) ?? undefined,
     id: row.id,
     iso2: row.iso2 ?? undefined,
     name: row.name,
@@ -330,7 +331,7 @@ function mapMatch(row: MatchRow): Match {
     awayTeamId: row.away_team_id,
     city: row.city ?? "",
     elapsedMinutes: row.elapsed_minutes ?? undefined,
-    groupName: row.group_name ?? undefined,
+    groupName: normalizeWorldCupGroupName(row.group_name) ?? undefined,
     homeScore: row.home_score ?? undefined,
     homeTeamId: row.home_team_id,
     id: row.id,
@@ -467,7 +468,13 @@ function mapAdminOverride(row: AdminOverrideRow): AdminOverride {
 
 function buildStandings(rows: StandingRowRecord[]) {
   return rows.reduce<Record<string, StandingRow[]>>((groups, row) => {
-    const group = groups[row.group_name] ?? [];
+    const groupName = normalizeWorldCupGroupName(row.group_name);
+
+    if (!groupName) {
+      return groups;
+    }
+
+    const group = groups[groupName] ?? [];
     group.push({
       drawn: row.drawn,
       goalsAgainst: row.goals_against,
@@ -479,7 +486,7 @@ function buildStandings(rows: StandingRowRecord[]) {
       teamId: row.team_id,
       won: row.won,
     });
-    groups[row.group_name] = group;
+    groups[groupName] = group;
     return groups;
   }, {});
 }

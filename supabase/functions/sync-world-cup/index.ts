@@ -1302,8 +1302,8 @@ function mapQualification(description?: string | null) {
 }
 
 function normalizeGroupName(value?: string | null) {
-  const match = value?.match(/Group [A-Z]/i);
-  return match?.[0] ?? null;
+  const match = value?.match(/\bGroup\s+([A-L])\b/i);
+  return match ? `Group ${match[1].toUpperCase()}` : null;
 }
 
 function groupNameFromRound(round?: string) {

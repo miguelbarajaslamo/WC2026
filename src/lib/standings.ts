@@ -1,8 +1,23 @@
 import type { BootstrapData, StandingRow } from "@/lib/types";
 
+const VALID_GROUPS = new Set(
+  Array.from({ length: 12 }, (_, index) => `Group ${String.fromCharCode(65 + index)}`),
+);
+
 type Tally = StandingRow & {
   teamName: string;
 };
+
+export function normalizeWorldCupGroupName(value?: string | null) {
+  const match = value?.match(/\bGroup\s+([A-L])\b/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const groupName = `Group ${match[1].toUpperCase()}`;
+  return VALID_GROUPS.has(groupName) ? groupName : null;
+}
 
 function emptyTally({
   groupRow,
@@ -57,8 +72,14 @@ function existingStandingLookup(data: BootstrapData) {
   const lookup = new Map<string, { groupName: string; row: StandingRow }>();
 
   Object.entries(data.standings).forEach(([groupName, rows]) => {
+    const normalizedGroupName = normalizeWorldCupGroupName(groupName);
+
+    if (!normalizedGroupName) {
+      return;
+    }
+
     rows.forEach((row) => {
-      lookup.set(row.teamId, { groupName, row });
+      lookup.set(row.teamId, { groupName: normalizedGroupName, row });
     });
   });
 
@@ -70,7 +91,8 @@ function groupByTeam(data: BootstrapData) {
   const groups = new Map<string, string>();
 
   data.teams.forEach((team) => {
-    const groupName = team.groupName ?? existing.get(team.id)?.groupName;
+    const groupName =
+      normalizeWorldCupGroupName(team.groupName) ?? existing.get(team.id)?.groupName;
 
     if (groupName) {
       groups.set(team.id, groupName);
@@ -78,16 +100,18 @@ function groupByTeam(data: BootstrapData) {
   });
 
   data.matches.forEach((match) => {
-    if (!match.groupName) {
+    const groupName = normalizeWorldCupGroupName(match.groupName);
+
+    if (!groupName) {
       return;
     }
 
     if (!groups.has(match.homeTeamId)) {
-      groups.set(match.homeTeamId, match.groupName);
+      groups.set(match.homeTeamId, groupName);
     }
 
     if (!groups.has(match.awayTeamId)) {
-      groups.set(match.awayTeamId, match.groupName);
+      groups.set(match.awayTeamId, groupName);
     }
   });
 
@@ -118,7 +142,9 @@ export function buildLiveStandings(data: BootstrapData) {
 
   data.matches.forEach((match) => {
     const groupName =
-      match.groupName ?? groups.get(match.homeTeamId) ?? groups.get(match.awayTeamId);
+      normalizeWorldCupGroupName(match.groupName) ??
+      groups.get(match.homeTeamId) ??
+      groups.get(match.awayTeamId);
 
     if (!groupName) {
       return;
