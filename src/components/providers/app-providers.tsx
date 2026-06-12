@@ -67,6 +67,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       "match_events",
       "predictions",
       "score_snapshots",
+      "standings",
       "bonus_winners",
       "bonus_score_snapshots",
       "match_player_stats",

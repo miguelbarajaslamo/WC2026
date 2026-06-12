@@ -456,6 +456,12 @@ async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<S
 
       await recalculateFinishedFixtures(supabase, syncTargets.finishedMatchIds);
 
+      // A final just landed: refresh the group tables from our own results so
+      // Groups updates within the same minute (the provider's standings lag).
+      if (syncTargets.finishedMatchIds.length > 0) {
+        await recalculateGroupStandings(supabase);
+      }
+
       if (tick < 3) {
         await sleep(15_000);
       }
@@ -488,6 +494,11 @@ async function runReferenceSync(
   });
   requestsUsed += 1;
   await upsertStandings(supabase, standings.response ?? []);
+
+  // Run after the provider upsert: our own match results win the counting
+  // columns (the provider's standings can lag finals by hours), while the
+  // provider keeps ownership of the qualification flag set above.
+  await recalculateGroupStandings(supabase);
 
   return {
     message: `Reference schedule synced: ${syncTargets.fixtureIds.length} fixtures.`,
@@ -682,6 +693,106 @@ async function upsertCountryCardBonusOptions(
   await supabase
     .from("bonus_pick_options")
     .upsert(rows, { onConflict: "id" });
+}
+
+// Group tables computed from our own finished match results (zero API calls).
+// The provider's /standings endpoint lags finals by hours — and our matches
+// table is fresh within seconds of FT — so this is the timely source for the
+// counting columns. The provider's standings still run in reference mode and
+// own the qualification flag; this upsert deliberately omits that column so
+// it never overwrites provider data.
+async function recalculateGroupStandings(
+  supabase: ReturnType<typeof createClient>,
+) {
+  const { data: groupMatches } = await supabase
+    .from("matches")
+    .select("home_team_id,away_team_id,home_score,away_score,status,group_name")
+    .not("group_name", "is", null);
+
+  if (!groupMatches || groupMatches.length === 0) {
+    return;
+  }
+
+  type Tally = {
+    drawn: number;
+    goals_against: number;
+    goals_for: number;
+    group_name: string;
+    lost: number;
+    played: number;
+    points: number;
+    won: number;
+  };
+  const tallies = new Map<string, Tally>();
+  const ensure = (teamId: string, groupName: string) => {
+    let tally = tallies.get(teamId);
+    if (!tally) {
+      tally = {
+        drawn: 0,
+        goals_against: 0,
+        goals_for: 0,
+        group_name: groupName,
+        lost: 0,
+        played: 0,
+        points: 0,
+        won: 0,
+      };
+      tallies.set(teamId, tally);
+    }
+    return tally;
+  };
+
+  for (const match of groupMatches) {
+    const groupName = match.group_name as string;
+    // Every group team gets a row, even before it has played.
+    const home = ensure(String(match.home_team_id), groupName);
+    const away = ensure(String(match.away_team_id), groupName);
+
+    if (
+      match.status !== "finished" ||
+      match.home_score === null ||
+      match.away_score === null
+    ) {
+      continue;
+    }
+
+    home.played += 1;
+    away.played += 1;
+    home.goals_for += match.home_score;
+    home.goals_against += match.away_score;
+    away.goals_for += match.away_score;
+    away.goals_against += match.home_score;
+
+    if (match.home_score > match.away_score) {
+      home.won += 1;
+      home.points += 3;
+      away.lost += 1;
+    } else if (match.home_score < match.away_score) {
+      away.won += 1;
+      away.points += 3;
+      home.lost += 1;
+    } else {
+      home.drawn += 1;
+      away.drawn += 1;
+      home.points += 1;
+      away.points += 1;
+    }
+  }
+
+  const { data: pools } = await supabase.from("pools").select("id");
+  const updatedAt = new Date().toISOString();
+  const rows = (pools ?? []).flatMap((pool) =>
+    [...tallies.entries()].map(([teamId, tally]) => ({
+      ...tally,
+      pool_id: pool.id,
+      team_id: teamId,
+      updated_at: updatedAt,
+    })),
+  );
+
+  if (rows.length > 0) {
+    await supabase.from("standings").upsert(rows, { onConflict: "pool_id,team_id" });
+  }
 }
 
 async function upsertStandings(
