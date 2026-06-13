@@ -39,7 +39,12 @@ export function TodayView() {
     ["live", "halftime"].includes(match.status),
   );
   const upcoming = matches.filter((match) => match.status === "scheduled").slice(0, 4);
-  const finished = matches.filter((match) => match.status === "finished").slice(0, 3);
+  // matches is sorted by kickoff ascending — take the most recent finals
+  // (newest first) so the latest results always show, not the oldest three.
+  const finished = matches
+    .filter((match) => match.status === "finished")
+    .slice(-5)
+    .reverse();
   const missing = getMissingPicksWithinDays(data, warningDays);
   const nextLock = getNextLockMatch(data);
   const currentRank = data.leaderboard.find(
@@ -132,12 +137,19 @@ export function TodayView() {
         </div>
       </Section>
 
-      <Section title="Finished today">
-        <div className="space-y-3">
-          {finished.map((match) => (
-            <MatchRow data={data} key={match.id} match={match} />
-          ))}
-        </div>
+      <Section title="Latest results">
+        {finished.length > 0 ? (
+          <div className="space-y-3">
+            {finished.map((match) => (
+              <MatchRow data={data} key={match.id} match={match} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            body="Finished matches will show here with final scores and scorers."
+            title="No results yet"
+          />
+        )}
       </Section>
     </div>
     </PullToRefresh>
