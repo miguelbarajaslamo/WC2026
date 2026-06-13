@@ -1213,7 +1213,24 @@ async function upsertFixturePlayerStats(
 
   await supabase
     .from("match_player_stats")
-    .upsert(rows, { onConflict: "match_id,team_id,player_name" });
+    .upsert(rows, { onConflict: "match_id,player_id" });
+
+  // Self-heal: drop rows for this fixture whose player_id isn't in the current
+  // provider set — clears stale duplicates left by the old name-based key.
+  const currentPlayerIds = rows
+    .map((row) => row.player_id)
+    .filter((id): id is string => Boolean(id));
+  if (currentPlayerIds.length > 0) {
+    await supabase
+      .from("match_player_stats")
+      .delete()
+      .eq("match_id", String(fixtureId))
+      .not(
+        "player_id",
+        "in",
+        `(${currentPlayerIds.map((id) => `"${id}"`).join(",")})`,
+      );
+  }
 
   await recalculateTournamentPlayerStats(supabase);
 }
@@ -1244,7 +1261,11 @@ async function recalculateTournamentPlayerStats(
       continue;
     }
 
-    const key = `${stat.team_id}:${stat.player_name}`;
+    // Group by the stable player_id (fall back to name only when it's missing),
+    // so a player whose name was enriched between matches stays one row.
+    const key = stat.player_id
+      ? `id:${stat.player_id}`
+      : `name:${stat.team_id}:${stat.player_name}`;
     const current = grouped.get(key);
 
     if (!current) {
@@ -1269,7 +1290,11 @@ async function recalculateTournamentPlayerStats(
     current.red_cards += stat.red_cards ?? 0;
     current.saves += stat.saves ?? 0;
     current.yellow_cards += stat.yellow_cards ?? 0;
-    current.updated_at = stat.updated_at ?? current.updated_at;
+    // Keep the most recent (fullest) name for display.
+    if ((stat.updated_at ?? "") >= current.updated_at) {
+      current.player_name = stat.player_name;
+      current.updated_at = stat.updated_at ?? current.updated_at;
+    }
   }
 
   const rows = [...grouped.values()];
@@ -1277,7 +1302,19 @@ async function recalculateTournamentPlayerStats(
   if (rows.length > 0) {
     await supabase
       .from("tournament_player_stat_snapshots")
-      .upsert(rows, { onConflict: "player_name,team_id" });
+      .upsert(rows, { onConflict: "team_id,player_id" });
+
+    // Remove orphan snapshots (e.g. old name-keyed rows) so totals don't
+    // linger for a player who no longer matches the current id set.
+    const ids = rows
+      .map((row) => row.player_id)
+      .filter((id): id is string => Boolean(id));
+    if (ids.length > 0) {
+      await supabase
+        .from("tournament_player_stat_snapshots")
+        .delete()
+        .not("player_id", "in", `(${ids.map((id) => `"${id}"`).join(",")})`);
+    }
   }
 }
 
