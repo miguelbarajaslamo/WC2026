@@ -69,11 +69,13 @@ type ApiFootballFixture = {
 
 type ApiFootballEvent = {
   assist?: {
+    id?: number | null;
     name?: string | null;
   };
   comments?: string | null;
   detail?: string;
   player?: {
+    id?: number | null;
     name?: string | null;
   };
   team?: {
@@ -1065,14 +1067,31 @@ async function upsertFixtureEvents(
     return;
   }
 
+  // Identify each event by fields that DON'T change between syncs: time, team,
+  // the provider's raw type, and the numeric player id. The display name gets
+  // enriched ("" → "J. Quinones" → "Julián Quiñones"), detail can change, our
+  // mapped type can change, and array position shifts as the live list grows —
+  // including any of those bred a fresh row every sync (the duplicate bug).
+  // A per-bucket occurrence counter disambiguates the rare identical repeat.
+  const bucketCounts = new Map<string, number>();
   const rows = events
     .filter((event) => event.type)
-    .map((event, index) => {
+    .map((event) => {
       const elapsed = event.time?.elapsed ?? 0;
       const extra = event.time?.extra ?? null;
-      const playerName = event.player?.name ?? "";
       const detail = event.detail ?? event.comments ?? "";
       const eventType = mapEventType(event.type ?? "", detail);
+
+      const bucketKey = [
+        fixtureId,
+        elapsed,
+        extra ?? 0,
+        event.team?.id ?? 0,
+        (event.type ?? "").toLowerCase(),
+        event.player?.id ?? 0,
+      ].join(":");
+      const occurrence = bucketCounts.get(bucketKey) ?? 0;
+      bucketCounts.set(bucketKey, occurrence + 1);
 
       return {
         assist_name: event.assist?.name,
@@ -1080,25 +1099,34 @@ async function upsertFixtureEvents(
         elapsed_minutes: elapsed,
         event_type: eventType,
         match_id: String(fixtureId),
-        player_name: playerName,
-        provider_event_id: [
-          fixtureId,
-          elapsed,
-          extra ?? 0,
-          event.team?.id ?? 0,
-          eventType,
-          playerName,
-          detail,
-          index,
-        ].join(":"),
+        player_name: event.player?.name ?? "",
+        provider_event_id: `${bucketKey}:${occurrence}`,
         stoppage_minutes: extra,
         team_id: event.team?.id ? String(event.team.id) : null,
       };
     });
 
+  if (rows.length === 0) {
+    return;
+  }
+
   await supabase
     .from("match_events")
     .upsert(rows, { onConflict: "match_id,provider_event_id" });
+
+  // Self-heal: drop any rows for this fixture that aren't in the provider's
+  // current set — clears duplicates left by older id schemes (and any event the
+  // provider later retracts). Upsert ran first, so live views never see a gap.
+  const currentIds = rows.map((row) => row.provider_event_id);
+  await supabase
+    .from("match_events")
+    .delete()
+    .eq("match_id", String(fixtureId))
+    .not(
+      "provider_event_id",
+      "in",
+      `(${currentIds.map((id) => `"${id}"`).join(",")})`,
+    );
 }
 
 async function upsertFixturePlayerStats(
