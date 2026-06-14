@@ -4,7 +4,11 @@ import { Avatar } from "@/components/ui/avatar";
 import { MatchRow } from "@/components/app/match-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
-import { getUserPrediction, getVisibleMatches } from "@/lib/data/selectors";
+import {
+  getUserPrediction,
+  getVisibleMatches,
+  isMatchLocked,
+} from "@/lib/data/selectors";
 import { specialPoints, specialSlots } from "@/lib/specials";
 
 function actualResult(homeScore: number, awayScore: number) {
@@ -52,8 +56,12 @@ export function MemberDetailView({ userId }: { userId: string }) {
     );
   }).length;
 
-  const matchesWithPicks = getVisibleMatches(data).filter((match) =>
-    getUserPrediction(data, match.id, userId),
+  // History = every match that counts for them: any they picked, plus locked
+  // matches they missed (no pick), so misses are visible instead of hidden.
+  // Future, still-open matches aren't shown — they aren't missed yet.
+  const history = getVisibleMatches(data).filter(
+    (match) =>
+      getUserPrediction(data, match.id, userId) || isMatchLocked(match),
   );
 
   const specials = specialSlots.map((slot) => {
@@ -138,13 +146,13 @@ export function MemberDetailView({ userId }: { userId: string }) {
         <h2 className="text-sm font-black uppercase tracking-wide text-stone-500">
           Picks history
         </h2>
-        {matchesWithPicks.length === 0 ? (
+        {history.length === 0 ? (
           <EmptyState
-            body="No locked picks to show yet."
+            body="No locked matches to show yet."
             title="Nothing here yet"
           />
         ) : (
-          matchesWithPicks.map((match) => (
+          history.map((match) => (
             <MatchRow
               data={data}
               key={match.id}
