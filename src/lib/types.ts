@@ -233,6 +233,7 @@ export type BonusScoreSnapshot = {
 
 export type PlayerCategoryRow = {
   rank: number;
+  playerId?: string;
   playerName: string;
   teamId?: string;
   teamName?: string;

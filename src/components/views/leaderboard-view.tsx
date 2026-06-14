@@ -5,7 +5,6 @@ import { ArrowDown, ArrowUp, BarChart3, Minus } from "lucide-react";
 import { ClickableAvatar } from "@/components/app/clickable-avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { PotSummary } from "@/components/app/pot-summary";
-import { TopTips } from "@/components/views/top-tips";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 
 export function LeaderboardView() {
@@ -78,8 +77,6 @@ export function LeaderboardView() {
           );
         })}
       </div>
-
-      <TopTips data={data} />
     </div>
   );
 }

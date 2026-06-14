@@ -1,17 +1,30 @@
 "use client";
 
-import { Activity, Goal, Handshake, ShieldAlert } from "lucide-react";
+import { Activity, ChevronDown, Goal, Handshake, ShieldAlert, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
 import { Flag } from "@/components/ui/flag";
+import { cn } from "@/lib/cn";
+import { getSpecialsProgress } from "@/lib/specials";
+import {
+  buildSpecialPickers,
+  type SpecialPickers,
+  specialPlayerKey,
+  specialTeamKey,
+} from "@/lib/tips";
 import { formatLocalDateTime } from "@/lib/time";
 import type {
+  BonusPickType,
   CountryCardCategoryRow,
   PlayerCategoryRow,
 } from "@/lib/types";
 
 export function StatsView() {
   const { data, error, isLoading } = useBootstrap();
+  // Who picked each player/country as a special — revealed only after lock.
+  const pickers = useMemo(() => (data ? buildSpecialPickers(data) : new Map()), [data]);
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   if (isLoading || !data) {
     return <LoadingState label="Loading stats" />;
@@ -20,6 +33,9 @@ export function StatsView() {
   if (error) {
     return <ErrorState message={error.message} />;
   }
+
+  const specialsLocked = getSpecialsProgress(data).locked;
+  const shared = { openKey, pickers, revealPickers: specialsLocked, setOpenKey };
 
   return (
     <div className="space-y-4">
@@ -37,19 +53,78 @@ export function StatsView() {
         emptyLabel="No goals tracked yet."
         icon={<Goal size={18} />}
         rows={data.categoryLeaderboards.topScorers}
+        specialType="top_scorer"
         title="Top scorers"
         valueLabel="goals"
+        {...shared}
       />
 
       <PlayerBoard
         emptyLabel="No assists tracked yet."
         icon={<Handshake size={18} />}
         rows={data.categoryLeaderboards.topAssists}
+        specialType="most_assists"
         title="Top assists"
         valueLabel="assists"
+        {...shared}
       />
 
-      <CountryCardBoard rows={data.categoryLeaderboards.countryCardPoints} />
+      <CountryCardBoard
+        rows={data.categoryLeaderboards.countryCardPoints}
+        {...shared}
+      />
+    </div>
+  );
+}
+
+type SharedPickerProps = {
+  openKey: string | null;
+  pickers: SpecialPickers;
+  revealPickers: boolean;
+  setOpenKey: (key: string | null) => void;
+};
+
+// Subtle "picked by N" pill that expands inline to the members who chose this
+// player/country as their special for the category.
+function PickedBy({
+  members,
+  onToggle,
+  open,
+}: {
+  members: string[];
+  onToggle: () => void;
+  open: boolean;
+}) {
+  return (
+    <div className="border-t border-black/5 px-3 py-2">
+      <button
+        aria-expanded={open}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black",
+          open ? "bg-emerald-950 text-white" : "bg-stone-100 text-stone-600",
+        )}
+        onClick={onToggle}
+        type="button"
+      >
+        <Users size={12} />
+        Picked by {members.length}
+        <ChevronDown
+          className={cn("transition-transform", open && "rotate-180")}
+          size={12}
+        />
+      </button>
+      {open ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {members.map((member) => (
+            <span
+              className="rounded-full bg-stone-100 px-2 py-1 text-xs font-bold text-stone-700"
+              key={member}
+            >
+              {member}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -57,13 +132,19 @@ export function StatsView() {
 function PlayerBoard({
   emptyLabel,
   icon,
+  openKey,
+  pickers,
+  revealPickers,
   rows,
+  setOpenKey,
+  specialType,
   title,
   valueLabel,
-}: {
+}: SharedPickerProps & {
   emptyLabel: string;
   icon: React.ReactNode;
   rows: PlayerCategoryRow[];
+  specialType: BonusPickType;
   title: string;
   valueLabel: string;
 }) {
@@ -74,44 +155,69 @@ function PlayerBoard({
         <EmptyState body={emptyLabel} title="Waiting on match data" />
       ) : (
         <div className="space-y-2">
-          {rows.map((row) => (
-            <div
-              className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-lg border border-black/10 bg-white p-3 shadow-sm"
-              key={`${row.rank}-${row.teamId}-${row.playerName}`}
-            >
-              <span className="font-mono text-lg font-black tabular-nums">
-                {row.rank}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-black">{row.playerName}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <Flag
-                    code={row.iso2}
-                    label={row.teamName ?? row.teamShortName ?? "Team"}
-                    size="sm"
-                  />
-                  <span className="truncate text-xs font-bold text-stone-500">
-                    {row.teamShortName ?? row.teamName ?? "Team"}
+          {rows.map((row) => {
+            const rowKey = `${specialType}:${row.teamId}:${row.playerName}`;
+            const members =
+              revealPickers && row.playerId
+                ? pickers.get(specialPlayerKey(specialType, row.playerId))
+                : undefined;
+            const open = openKey === rowKey;
+            return (
+              <div
+                className="overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm"
+                key={rowKey}
+              >
+                <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3 p-3">
+                  <span className="font-mono text-lg font-black tabular-nums">
+                    {row.rank}
                   </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-black">{row.playerName}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Flag
+                        code={row.iso2}
+                        label={row.teamName ?? row.teamShortName ?? "Team"}
+                        size="sm"
+                      />
+                      <span className="truncate text-xs font-bold text-stone-500">
+                        {row.teamShortName ?? row.teamName ?? "Team"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-xl font-black tabular-nums">
+                      {row.value}
+                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
+                      {valueLabel}
+                    </p>
+                  </div>
                 </div>
+                {members && members.length > 0 ? (
+                  <PickedBy
+                    members={members}
+                    onToggle={() => setOpenKey(open ? null : rowKey)}
+                    open={open}
+                  />
+                ) : null}
               </div>
-              <div className="text-right">
-                <p className="font-mono text-xl font-black tabular-nums">
-                  {row.value}
-                </p>
-                <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
-                  {valueLabel}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
   );
 }
 
-function CountryCardBoard({ rows }: { rows: CountryCardCategoryRow[] }) {
+function CountryCardBoard({
+  openKey,
+  pickers,
+  revealPickers,
+  rows,
+  setOpenKey,
+}: SharedPickerProps & {
+  rows: CountryCardCategoryRow[];
+}) {
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -125,44 +231,59 @@ function CountryCardBoard({ rows }: { rows: CountryCardCategoryRow[] }) {
         <EmptyState body="No country card points tracked yet." title="Waiting on cards" />
       ) : (
         <div className="space-y-2">
-          {rows.map((row) => (
-            <div
-              className="rounded-lg border border-black/10 bg-white p-3 shadow-sm"
-              key={`${row.rank}-${row.teamId}`}
-            >
-              <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3">
-                <span className="font-mono text-lg font-black tabular-nums">
-                  {row.rank}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Flag code={row.iso2} label={row.teamName} size="md" />
-                    <p className="truncate font-black">{row.teamName}</p>
+          {rows.map((row) => {
+            const rowKey = `most_cards_country:${row.teamId}`;
+            const members = revealPickers
+              ? pickers.get(specialTeamKey("most_cards_country", row.teamId))
+              : undefined;
+            const open = openKey === rowKey;
+            return (
+              <div
+                className="rounded-lg border border-black/10 bg-white shadow-sm"
+                key={rowKey}
+              >
+                <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3 p-3">
+                  <span className="font-mono text-lg font-black tabular-nums">
+                    {row.rank}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Flag code={row.iso2} label={row.teamName} size="md" />
+                      <p className="truncate font-black">{row.teamName}</p>
+                    </div>
+                    <p className="mt-1 truncate text-xs font-bold text-stone-500">
+                      {row.yellowCards} yellow · {row.redCards} red
+                    </p>
                   </div>
-                  <p className="mt-1 truncate text-xs font-bold text-stone-500">
-                    {row.yellowCards} yellow · {row.redCards} red
-                  </p>
+                  <div className="text-right">
+                    <p className="font-mono text-xl font-black tabular-nums">
+                      {row.points}
+                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
+                      pts
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-mono text-xl font-black tabular-nums">
-                    {row.points}
-                  </p>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
-                    pts
-                  </p>
-                </div>
-              </div>
 
-              <div className="mt-3 flex items-center gap-2 border-t border-black/10 pt-3 text-xs font-bold text-stone-500">
-                <Activity size={14} />
-                <span className="truncate">
-                  {row.updatedAt
-                    ? `Fresh ${formatLocalDateTime(row.updatedAt)}`
-                    : "Freshness pending"}
-                </span>
+                <div className="flex items-center gap-2 border-t border-black/10 px-3 py-3 text-xs font-bold text-stone-500">
+                  <Activity size={14} />
+                  <span className="truncate">
+                    {row.updatedAt
+                      ? `Fresh ${formatLocalDateTime(row.updatedAt)}`
+                      : "Freshness pending"}
+                  </span>
+                </div>
+
+                {members && members.length > 0 ? (
+                  <PickedBy
+                    members={members}
+                    onToggle={() => setOpenKey(open ? null : rowKey)}
+                    open={open}
+                  />
+                ) : null}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

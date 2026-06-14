@@ -108,11 +108,13 @@ function aggregatePlayerRows({
   const grouped = new Map<string, PlayerCategoryRow>();
 
   function addValue({
+    playerId,
     playerName,
     teamId,
     updatedAt,
     value,
   }: {
+    playerId?: string;
     playerName: string;
     teamId: string;
     updatedAt?: string;
@@ -129,6 +131,7 @@ function aggregatePlayerRows({
     if (!current) {
       grouped.set(key, {
         iso2: team?.iso2,
+        playerId,
         playerName,
         rank: 0,
         teamId,
@@ -141,11 +144,16 @@ function aggregatePlayerRows({
     }
 
     current.value += value;
+    // Stats carry the stable player id; events don't — keep the first we see.
+    if (!current.playerId && playerId) {
+      current.playerId = playerId;
+    }
     current.updatedAt = newerDate(current.updatedAt, updatedAt);
   }
 
   stats.forEach((stat) => {
     addValue({
+      playerId: stat.playerId,
       playerName: stat.playerName,
       teamId: stat.teamId,
       updatedAt: stat.updatedAt,
