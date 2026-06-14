@@ -9,7 +9,7 @@ import {
   getVisibleMatches,
   isMatchLocked,
 } from "@/lib/data/selectors";
-import { specialPoints, specialSlots } from "@/lib/specials";
+import { getSpecialsProgress, specialPoints, specialSlots } from "@/lib/specials";
 
 function actualResult(homeScore: number, awayScore: number) {
   if (homeScore > awayScore) return "home";
@@ -83,6 +83,9 @@ export function MemberDetailView({ userId }: { userId: string }) {
     return { label: slot.label, option, score, type: slot.type };
   });
   const specialsFilled = specials.filter((item) => item.option).length;
+  // After lock, others' specials are revealed (or shown as a miss); before
+  // lock they stay hidden from everyone but the owner.
+  const specialsLocked = getSpecialsProgress(data).locked;
 
   return (
     <div className="space-y-4">
@@ -125,7 +128,11 @@ export function MemberDetailView({ userId }: { userId: string }) {
                   {item.label}
                 </p>
                 <p className="truncate font-bold">
-                  {item.option ? item.option.label : "Hidden until lock"}
+                  {item.option
+                    ? item.option.label
+                    : specialsLocked
+                      ? "No pick"
+                      : "Hidden until lock"}
                 </p>
               </div>
               {item.score ? (
