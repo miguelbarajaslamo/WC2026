@@ -7,7 +7,7 @@ import { useBootstrap } from "@/components/app/use-bootstrap";
 import { type BracketRoundView, projectBracket, type ResolvedSlot } from "@/lib/bracket";
 import { cn } from "@/lib/cn";
 
-const ROW_HEIGHT = 38;
+const ROW_HEIGHT = 56;
 const TOTAL_ROWS = 32;
 const ROUND_SPAN: Record<BracketRoundView["round"], number> = {
   Final: 32,

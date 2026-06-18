@@ -303,13 +303,14 @@ function CountryCardBoard({
 }
 
 function StreakBoard({ rows }: { rows: UserStreakCategoryRow[] }) {
-  const longestEver = rows.reduce<UserStreakCategoryRow | null>((best, row) => {
-    if (!best || row.longestStreak > best.longestStreak) {
-      return row;
-    }
-
-    return best;
-  }, null);
+  const longestEverValue = Math.max(0, ...rows.map((row) => row.longestStreak));
+  const longestEverRows = rows.filter(
+    (row) => row.longestStreak === longestEverValue && longestEverValue > 0,
+  );
+  const longestEverNames =
+    longestEverRows.length > 0
+      ? longestEverRows.map((row) => row.displayName).join(", ")
+      : "No leader";
 
   return (
     <section className="space-y-2">
@@ -328,12 +329,10 @@ function StreakBoard({ rows }: { rows: UserStreakCategoryRow[] }) {
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
                   Longest ever
                 </p>
-                <p className="truncate text-lg font-black">
-                  {longestEver?.displayName ?? "No leader"}
-                </p>
+                <p className="text-lg font-black leading-tight">{longestEverNames}</p>
               </div>
               <p className="ml-auto font-mono text-3xl font-black tabular-nums">
-                {longestEver?.longestStreak ?? 0}
+                {longestEverValue}
               </p>
             </div>
           </div>

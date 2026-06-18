@@ -93,4 +93,45 @@ describe("buildUserStreaks", () => {
       }).map((row) => row.userId),
     ).toEqual(["b", "a"]);
   });
+
+  it("keeps the same non-zero rank for tied streak rows", () => {
+    const profiles: Profile[] = [
+      profile("a", "Anna"),
+      profile("b", "Bo"),
+      profile("c", "Clara"),
+      profile("d", "Dee"),
+    ];
+
+    expect(
+      buildUserStreakCategoryRows({
+        profiles,
+        streaks: [
+          { currentStreak: 3, longestStreak: 5, userId: "a" },
+          { currentStreak: 2, longestStreak: 4, userId: "b" },
+          { currentStreak: 2, longestStreak: 4, userId: "c" },
+          { currentStreak: 1, longestStreak: 4, userId: "d" },
+        ],
+      }).map((row) => ({ rank: row.rank, userId: row.userId })),
+    ).toEqual([
+      { rank: 1, userId: "a" },
+      { rank: 2, userId: "b" },
+      { rank: 2, userId: "c" },
+      { rank: 4, userId: "d" },
+    ]);
+  });
 });
+
+function profile(id: string, displayName: string): Profile {
+  return {
+    avatarColor: "#111",
+    displayName,
+    id,
+    notificationDeadlines: true,
+    notificationFullTime: false,
+    notificationLiveScores: false,
+    notificationMatchLocks: false,
+    quietHoursEnabled: false,
+    quietHoursEnd: 23,
+    quietHoursStart: 9,
+  };
+}

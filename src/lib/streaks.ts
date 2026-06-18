@@ -87,6 +87,9 @@ export function buildUserStreakCategoryRows({
   streaks: UserStreak[];
 }): UserStreakCategoryRow[] {
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  let previousCurrentStreak: number | undefined;
+  let previousLongestStreak: number | undefined;
+  let previousRank = 0;
 
   return streaks
     .map((streak) => {
@@ -108,13 +111,17 @@ export function buildUserStreakCategoryRows({
         right.longestStreak - left.longestStreak ||
         left.displayName.localeCompare(right.displayName),
     )
-    .map((row, index, rows) => ({
-      ...row,
-      rank:
-        index > 0 &&
-        row.currentStreak === rows[index - 1].currentStreak &&
-        row.longestStreak === rows[index - 1].longestStreak
-          ? rows[index - 1].rank
-          : index + 1,
-    }));
+    .map((row, index) => {
+      const rank =
+        previousCurrentStreak === row.currentStreak &&
+        previousLongestStreak === row.longestStreak
+          ? previousRank
+          : index + 1;
+
+      previousCurrentStreak = row.currentStreak;
+      previousLongestStreak = row.longestStreak;
+      previousRank = rank;
+
+      return { ...row, rank };
+    });
 }
