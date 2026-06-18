@@ -3,20 +3,11 @@
 import { useState } from "react";
 import { FinalsView } from "@/components/views/finals-view";
 import { GroupsView } from "@/components/views/groups-view";
-import { useBootstrap } from "@/components/app/use-bootstrap";
 import { cn } from "@/lib/cn";
 
-// Groups page with a Groups/Finals tab switcher. The Finals tab is gated to the
-// system admin while the bracket is built — everyone else sees only Groups,
-// exactly as before (no tab, no hint the Finals view exists).
+// Groups remains the primary tab; Finals is a secondary bracket projection.
 export function GroupsFinalsView() {
-  const { data } = useBootstrap();
-  const canSeeFinals = Boolean(data?.currentUserIsSystemAdmin);
   const [tab, setTab] = useState<"finals" | "groups">("groups");
-
-  if (!canSeeFinals) {
-    return <GroupsView />;
-  }
 
   return (
     <div className="space-y-4">
