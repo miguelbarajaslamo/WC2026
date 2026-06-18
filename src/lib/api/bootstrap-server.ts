@@ -27,6 +27,7 @@ import {
   aggregateCategoryLeaderboards,
   type PlayerStatSource,
 } from "@/lib/stats/category-leaderboards";
+import { buildUserStreakCategoryRows, buildUserStreaks } from "@/lib/streaks";
 
 type PoolMemberRow = {
   joined_at: string;
@@ -507,6 +508,12 @@ function buildLeaderboard({
   const todayStart = startOfDay(new Date()).getTime();
   const matchById = new Map(matches.map((match) => [match.id, match]));
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const streakByUserId = new Map(
+    buildUserStreaks({ matches, members, scoreSnapshots }).map((streak) => [
+      streak.userId,
+      streak,
+    ]),
+  );
 
   return members
     .map((member) => {
@@ -530,8 +537,10 @@ function buildLeaderboard({
       return {
         avatarColor: profile?.avatarColor ?? "#064e3b",
         avatarUrl: profile?.avatarUrl,
+        currentStreak: streakByUserId.get(member.userId)?.currentStreak ?? 0,
         displayName: profile?.displayName ?? "Player",
         exactScores: matchScores.filter((snapshot) => snapshot.reason === "exact_score").length,
+        longestStreak: streakByUserId.get(member.userId)?.longestStreak ?? 0,
         movement: 0,
         points,
         rank: 0,
@@ -849,6 +858,11 @@ export async function buildSupabaseBootstrapData({
   const mappedEvents = events.map(mapEvent);
   const mappedTeams = teams.map(mapTeam);
   const mappedPlayerStats = matchPlayerStats.map(mapPlayerStat);
+  const userStreaks = buildUserStreaks({
+    matches: mappedMatches,
+    members: mappedMembers,
+    scoreSnapshots,
+  });
   const supportedBonusPickOptions = bonusPickOptions.filter(
     (option): option is BonusPickOptionRow & { type: BonusPickOption["type"] } =>
       isSupportedBonusPickType(option.type),
@@ -916,6 +930,10 @@ export async function buildSupabaseBootstrapData({
       matches: mappedMatches,
       playerStats: mappedPlayerStats,
       teams: mappedTeams,
+      userStreaks: buildUserStreakCategoryRows({
+        profiles: mappedProfiles,
+        streaks: userStreaks,
+      }),
     }),
   };
 }

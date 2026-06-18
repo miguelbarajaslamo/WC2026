@@ -346,11 +346,11 @@ function buildPredictions(now: Date): Prediction[] {
 }
 
 const leaderboard: LeaderboardRow[] = [
-  { userId: "user-lina", rank: 1, displayName: "Lina", avatarColor: "#d5a021", points: 18, todayPoints: 5, movement: 2, exactScores: 2, riskyHits: 1 },
-  { userId: "user-miguel", rank: 2, displayName: "Miguel", avatarColor: "#006a4e", points: 16, todayPoints: 5, movement: -1, exactScores: 2, riskyHits: 0 },
-  { userId: "user-dad", rank: 3, displayName: "Dad", avatarColor: "#111827", points: 14, todayPoints: 3, movement: 1, exactScores: 1, riskyHits: 1 },
-  { userId: "user-anna", rank: 4, displayName: "Anna", avatarColor: "#c1121f", points: 12, todayPoints: 4, movement: 0, exactScores: 1, riskyHits: 0 },
-  { userId: "user-oscar", rank: 5, displayName: "Oscar", avatarColor: "#1746a2", points: 9, todayPoints: 0, movement: -2, exactScores: 0, riskyHits: 1 },
+  { userId: "user-lina", rank: 1, displayName: "Lina", avatarColor: "#d5a021", points: 18, todayPoints: 5, movement: 2, exactScores: 2, currentStreak: 3, longestStreak: 4, riskyHits: 1 },
+  { userId: "user-miguel", rank: 2, displayName: "Miguel", avatarColor: "#006a4e", points: 16, todayPoints: 5, movement: -1, exactScores: 2, currentStreak: 2, longestStreak: 3, riskyHits: 0 },
+  { userId: "user-dad", rank: 3, displayName: "Dad", avatarColor: "#111827", points: 14, todayPoints: 3, movement: 1, exactScores: 1, currentStreak: 1, longestStreak: 2, riskyHits: 1 },
+  { userId: "user-anna", rank: 4, displayName: "Anna", avatarColor: "#c1121f", points: 12, todayPoints: 4, movement: 0, exactScores: 1, currentStreak: 1, longestStreak: 2, riskyHits: 0 },
+  { userId: "user-oscar", rank: 5, displayName: "Oscar", avatarColor: "#1746a2", points: 9, todayPoints: 0, movement: -2, exactScores: 0, currentStreak: 0, longestStreak: 1, riskyHits: 1 },
 ];
 
 const standings: Record<string, StandingRow[]> = {
@@ -573,6 +573,15 @@ export function buildMockBootstrapData(): BootstrapData {
       matches,
       playerStats: matchPlayerStats,
       teams,
+      userStreaks: leaderboard.map((row) => ({
+        avatarColor: row.avatarColor,
+        avatarUrl: row.avatarUrl,
+        currentStreak: row.currentStreak,
+        displayName: row.displayName,
+        longestStreak: row.longestStreak,
+        rank: row.rank,
+        userId: row.userId,
+      })),
     }),
     syncRuns: [
       {

@@ -64,7 +64,7 @@ export function LeaderboardView() {
                 <div className="min-w-0">
                   <p className="truncate font-black">{row.displayName}</p>
                   <p className="text-xs font-bold text-stone-500">
-                    Today {row.todayPoints} · Exact {row.exactScores}
+                    Streak {row.currentStreak} · Best {row.longestStreak}
                     {data.pool.scoringMode === "pot" ? ` · Risk ${row.riskyHits}` : ""}
                   </p>
                 </div>

@@ -176,6 +176,8 @@ export type LeaderboardRow = {
   todayPoints: number;
   movement: number;
   exactScores: number;
+  currentStreak: number;
+  longestStreak: number;
   riskyHits: number;
 };
 
@@ -255,10 +257,21 @@ export type CountryCardCategoryRow = {
   updatedAt?: string;
 };
 
+export type UserStreakCategoryRow = {
+  userId: string;
+  rank: number;
+  displayName: string;
+  avatarColor: string;
+  avatarUrl?: string;
+  currentStreak: number;
+  longestStreak: number;
+};
+
 export type CategoryLeaderboards = {
   topScorers: PlayerCategoryRow[];
   topAssists: PlayerCategoryRow[];
   countryCardPoints: CountryCardCategoryRow[];
+  userStreaks: UserStreakCategoryRow[];
 };
 
 export type TournamentPlayerStatSnapshot = {

@@ -1,6 +1,15 @@
 "use client";
 
-import { Activity, ChevronDown, Goal, Handshake, ShieldAlert, Users } from "lucide-react";
+import {
+  Activity,
+  ChevronDown,
+  Flame,
+  Goal,
+  Handshake,
+  ShieldAlert,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { useBootstrap } from "@/components/app/use-bootstrap";
@@ -18,6 +27,7 @@ import type {
   BonusPickType,
   CountryCardCategoryRow,
   PlayerCategoryRow,
+  UserStreakCategoryRow,
 } from "@/lib/types";
 
 export function StatsView() {
@@ -73,6 +83,8 @@ export function StatsView() {
         rows={data.categoryLeaderboards.countryCardPoints}
         {...shared}
       />
+
+      <StreakBoard rows={data.categoryLeaderboards.userStreaks} />
     </div>
   );
 }
@@ -287,6 +299,77 @@ function CountryCardBoard({
         </div>
       )}
     </section>
+  );
+}
+
+function StreakBoard({ rows }: { rows: UserStreakCategoryRow[] }) {
+  const longestEver = rows.reduce<UserStreakCategoryRow | null>((best, row) => {
+    if (!best || row.longestStreak > best.longestStreak) {
+      return row;
+    }
+
+    return best;
+  }, null);
+
+  return (
+    <section className="space-y-2">
+      <SectionTitle icon={<Flame size={18} />} title="Pick streaks" />
+
+      {rows.length === 0 ? (
+        <EmptyState body="No finished match picks tracked yet." title="Waiting on scores" />
+      ) : (
+        <>
+          <div className="rounded-lg border border-black/10 bg-[#022c22] p-4 text-white shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-md bg-white text-emerald-950">
+                <Trophy size={19} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  Longest ever
+                </p>
+                <p className="truncate text-lg font-black">
+                  {longestEver?.displayName ?? "No leader"}
+                </p>
+              </div>
+              <p className="ml-auto font-mono text-3xl font-black tabular-nums">
+                {longestEver?.longestStreak ?? 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div
+                className="grid grid-cols-[32px_1fr_auto_auto] items-center gap-3 rounded-lg border border-black/10 bg-white p-3 shadow-sm"
+                key={row.userId}
+              >
+                <span className="font-mono text-lg font-black tabular-nums">
+                  {row.rank}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-black">{row.displayName}</p>
+                  <p className="text-xs font-bold text-stone-500">Correct pick streaks</p>
+                </div>
+                <StreakMetric label="Current" value={row.currentStreak} />
+                <StreakMetric label="Best" value={row.longestStreak} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function StreakMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="text-right">
+      <p className="font-mono text-xl font-black tabular-nums">{value}</p>
+      <p className="text-[10px] font-black uppercase tracking-wide text-stone-500">
+        {label}
+      </p>
+    </div>
   );
 }
 

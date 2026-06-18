@@ -5,6 +5,7 @@ import type {
   MatchEvent,
   PlayerCategoryRow,
   Team,
+  UserStreakCategoryRow,
 } from "@/lib/types";
 
 export type PlayerStatSource = {
@@ -274,11 +275,13 @@ export function aggregateCategoryLeaderboards({
   matches,
   playerStats = [],
   teams,
+  userStreaks = [],
 }: {
   events: MatchEvent[];
   matches: Match[];
   playerStats?: PlayerStatSource[];
   teams: Team[];
+  userStreaks?: UserStreakCategoryRow[];
 }): CategoryLeaderboards {
   return {
     countryCardPoints: aggregateCountryCardPoints({
@@ -303,6 +306,7 @@ export function aggregateCategoryLeaderboards({
       stats: playerStats,
       teams,
     }),
+    userStreaks,
   };
 }
 
