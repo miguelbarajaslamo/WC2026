@@ -515,7 +515,7 @@ function buildLeaderboard({
     ]),
   );
 
-  return members
+  const ranked = members
     .map((member) => {
       const profile = profileById.get(member.userId);
       const matchScores = scoreSnapshots.filter(
@@ -549,8 +549,21 @@ function buildLeaderboard({
         userId: member.userId,
       };
     })
-    .sort((left, right) => right.points - left.points)
-    .map((row, index) => ({ ...row, rank: index + 1 }));
+    .sort(
+      (left, right) =>
+        right.points - left.points || right.longestStreak - left.longestStreak,
+    );
+
+  // Best (longest) streak breaks points ties; identical points AND streak
+  // share a rank, so several players can sit 1st.
+  return ranked.map((row) => ({
+    ...row,
+    rank:
+      ranked.findIndex(
+        (other) =>
+          other.points === row.points && other.longestStreak === row.longestStreak,
+      ) + 1,
+  }));
 }
 
 async function requireSingle<T>(

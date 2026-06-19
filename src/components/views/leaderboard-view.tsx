@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDown, ArrowUp, BarChart3, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, BarChart3, Crown, Minus } from "lucide-react";
 import { ClickableAvatar } from "@/components/app/clickable-avatar";
 import { ErrorState, LoadingState } from "@/components/app/data-state";
 import { PotSummary } from "@/components/app/pot-summary";
@@ -50,7 +50,16 @@ export function LeaderboardView() {
               key={row.userId}
             >
               <Link className="contents" href={detailHref}>
-                <span className="font-mono text-lg font-black">{row.rank}</span>
+                {row.rank === 1 ? (
+                  <Crown
+                    aria-label="1st place"
+                    className="text-amber-500"
+                    fill="currentColor"
+                    size={20}
+                  />
+                ) : (
+                  <span className="font-mono text-lg font-black">{row.rank}</span>
+                )}
               </Link>
               <ClickableAvatar
                 color={row.avatarColor}
