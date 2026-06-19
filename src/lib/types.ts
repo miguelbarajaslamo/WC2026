@@ -95,7 +95,9 @@ export type MatchEvent = {
   minute: number;
   stoppageMinute?: number;
   teamId: string;
+  playerId?: string;
   playerName: string;
+  assistId?: string;
   assistName?: string;
   type: EventType;
   detail?: string;

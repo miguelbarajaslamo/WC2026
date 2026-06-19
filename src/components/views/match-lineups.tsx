@@ -47,7 +47,33 @@ function namesMatch(a: string | undefined, b: string) {
 
 type PlayerBadges = { goals: number; red: boolean; subbedOff: boolean; yellow: boolean };
 
-function badgesFor(player: LineupPlayer, events: MatchEvent[]): PlayerBadges {
+function eventMatchesPlayer({
+  event,
+  player,
+  playerEventId,
+  teamId,
+}: {
+  event: MatchEvent;
+  player: LineupPlayer;
+  playerEventId?: string;
+  teamId: string;
+}) {
+  if (event.teamId !== teamId) {
+    return false;
+  }
+
+  if (player.id && playerEventId) {
+    return player.id === playerEventId;
+  }
+
+  return namesMatch(event.playerName, player.name);
+}
+
+function badgesFor(
+  player: LineupPlayer,
+  teamId: string,
+  events: MatchEvent[],
+): PlayerBadges {
   let goals = 0;
   let yellow = false;
   let red = false;
@@ -56,14 +82,41 @@ function badgesFor(player: LineupPlayer, events: MatchEvent[]): PlayerBadges {
     if (
       event.type === "goal" &&
       !(event.detail ?? "").toLowerCase().includes("own") &&
-      namesMatch(event.playerName, player.name)
+      eventMatchesPlayer({
+        event,
+        player,
+        playerEventId: event.playerId,
+        teamId,
+      })
     ) {
       goals += 1;
-    } else if (event.type === "yellow_card" && namesMatch(event.playerName, player.name)) {
+    } else if (
+      event.type === "yellow_card" &&
+      eventMatchesPlayer({
+        event,
+        player,
+        playerEventId: event.playerId,
+        teamId,
+      })
+    ) {
       yellow = true;
-    } else if (event.type === "red_card" && namesMatch(event.playerName, player.name)) {
+    } else if (
+      event.type === "red_card" &&
+      eventMatchesPlayer({
+        event,
+        player,
+        playerEventId: event.playerId,
+        teamId,
+      })
+    ) {
       red = true;
-    } else if (event.type === "substitution" && namesMatch(event.assistName, player.name)) {
+    } else if (
+      event.type === "substitution" &&
+      event.teamId === teamId &&
+      (player.id && event.assistId
+        ? player.id === event.assistId
+        : namesMatch(event.assistName, player.name))
+    ) {
       // API substitution: player = on, assist = off.
       subbedOff = true;
     }
@@ -256,7 +309,7 @@ function Pitch({
 
       {placed.map(({ left, player, team, top }) => (
         <PlayerToken
-          badges={badgesFor(player, events)}
+          badges={badgesFor(player, team.id, events)}
           key={`${team.id}-${player.id ?? player.name}`}
           left={left}
           player={player}
@@ -312,32 +365,33 @@ function PlayerToken({
       className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
       style={{ left: `${left}%`, top: `${top}%` }}
     >
-      <div className="relative grid size-8 place-items-center overflow-hidden rounded-full bg-stone-700 text-[10px] font-black text-white ring-2 ring-white">
-        {player.number ?? ""}
-        {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt={player.name}
-            className="absolute inset-0 size-full object-cover"
-            onError={(event) => {
-              event.currentTarget.style.visibility = "hidden";
-            }}
-            src={photo}
-          />
-        ) : null}
-
+      <div className="relative size-8">
+        <div className="grid size-8 place-items-center overflow-hidden rounded-full bg-stone-700 text-[10px] font-black text-white ring-2 ring-white">
+          {player.number ?? ""}
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={player.name}
+              className="absolute inset-0 size-full object-cover"
+              onError={(event) => {
+                event.currentTarget.style.visibility = "hidden";
+              }}
+              src={photo}
+            />
+          ) : null}
+        </div>
         {badges.goals > 0 ? (
-          <span className="absolute -left-1.5 -top-1.5 grid min-w-[14px] place-items-center rounded-full bg-white px-0.5 text-[8px] leading-none shadow">
+          <span className="absolute -left-1.5 -top-1.5 z-10 grid min-w-[14px] place-items-center rounded-full bg-white px-0.5 text-[8px] leading-none shadow">
             ⚽{badges.goals > 1 ? badges.goals : ""}
           </span>
         ) : null}
         {badges.red ? (
-          <span className="absolute -right-1 -top-1.5 h-3 w-2 rounded-[1px] bg-red-500 shadow" />
+          <span className="absolute -right-1 -top-1.5 z-10 h-3 w-2 rounded-[1px] bg-red-500 shadow" />
         ) : badges.yellow ? (
-          <span className="absolute -right-1 -top-1.5 h-3 w-2 rounded-[1px] bg-yellow-400 shadow" />
+          <span className="absolute -right-1 -top-1.5 z-10 h-3 w-2 rounded-[1px] bg-yellow-400 shadow" />
         ) : null}
         {badges.subbedOff ? (
-          <span className="absolute -bottom-1 -right-1 grid size-3.5 place-items-center rounded-full bg-red-600 text-[8px] font-black leading-none text-white shadow">
+          <span className="absolute -bottom-1 -right-1 z-10 grid size-3.5 place-items-center rounded-full bg-red-600 text-[8px] font-black leading-none text-white shadow">
             ↓
           </span>
         ) : null}

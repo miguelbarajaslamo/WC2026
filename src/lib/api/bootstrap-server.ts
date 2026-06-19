@@ -125,12 +125,14 @@ type PredictionRow = {
 };
 
 type MatchEventRow = {
+  assist_id?: string | null;
   assist_name: string | null;
   detail: string | null;
   elapsed_minutes: number | null;
   event_type: MatchEvent["type"];
   id: string;
   match_id: string;
+  player_id?: string | null;
   player_name: string | null;
   stoppage_minutes: number | null;
   team_id: string;
@@ -363,11 +365,13 @@ function mapPrediction(row: PredictionRow): Prediction {
 
 function mapEvent(row: MatchEventRow): MatchEvent {
   return {
+    assistId: row.assist_id ?? undefined,
     assistName: row.assist_name ?? undefined,
     detail: row.detail ?? undefined,
     id: row.id,
     matchId: row.match_id,
     minute: row.elapsed_minutes ?? 0,
+    playerId: row.player_id ?? undefined,
     playerName: row.player_name ?? "",
     stoppageMinute: row.stoppage_minutes ?? undefined,
     teamId: row.team_id,
@@ -762,13 +766,23 @@ export async function buildSupabaseBootstrapData({
           "id,api_football_fixture_id,home_team_id,away_team_id,stage,group_name,venue,city,kickoff_at,prediction_lock_at,status,provider_status_code,elapsed_minutes,home_score,away_score,winner,last_synced_at",
         ),
     ),
-    selectAllPaged<MatchEventRow>((from, to) =>
-      supabase
-        .from("match_events")
-        .select(
-          "id,match_id,elapsed_minutes,stoppage_minutes,team_id,player_name,assist_name,event_type,detail",
-        )
-        .range(from, to),
+    selectAllPaged<MatchEventRow>(async (from, to) =>
+      selectManyWithColumnFallback<MatchEventRow>(
+        () =>
+          supabase
+            .from("match_events")
+            .select(
+              "id,match_id,elapsed_minutes,stoppage_minutes,team_id,player_id,player_name,assist_id,assist_name,event_type,detail",
+            )
+            .range(from, to),
+        () =>
+          supabase
+            .from("match_events")
+            .select(
+              "id,match_id,elapsed_minutes,stoppage_minutes,team_id,player_name,assist_name,event_type,detail",
+            )
+            .range(from, to),
+      ).then((data) => ({ data, error: null })),
     ),
     selectMany<PredictionRow>(
       supabase

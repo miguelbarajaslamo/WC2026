@@ -174,13 +174,19 @@ create table if not exists public.match_events (
   elapsed_minutes integer,
   stoppage_minutes integer,
   team_id text references public.teams(id),
+  player_id text,
   player_name text,
+  assist_id text,
   assist_name text,
   event_type text not null,
   detail text,
   created_at timestamptz not null default now(),
   unique (match_id, provider_event_id)
 );
+
+alter table public.match_events
+  add column if not exists player_id text,
+  add column if not exists assist_id text;
 
 create table if not exists public.match_player_stats (
   id uuid primary key default gen_random_uuid(),

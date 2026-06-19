@@ -1200,11 +1200,13 @@ async function upsertFixtureEvents(
       bucketCounts.set(bucketKey, occurrence + 1);
 
       return {
+        assist_id: event.assist?.id ? String(event.assist.id) : null,
         assist_name: event.assist?.name,
         detail,
         elapsed_minutes: elapsed,
         event_type: eventType,
         match_id: String(fixtureId),
+        player_id: event.player?.id ? String(event.player.id) : null,
         player_name: event.player?.name ?? "",
         provider_event_id: `${bucketKey}:${occurrence}`,
         stoppage_minutes: extra,
