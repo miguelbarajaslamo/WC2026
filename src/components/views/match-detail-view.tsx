@@ -3,13 +3,16 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/data-state";
 import { Flag } from "@/components/ui/flag";
 import { FollowStar } from "@/components/app/follow-star";
+import { MatchLineups } from "@/components/views/match-lineups";
 import { PredictionForm } from "@/components/app/prediction-form";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useBootstrap } from "@/components/app/use-bootstrap";
+import { cn } from "@/lib/cn";
 import { formatLockTime, formatMinute, scoreText } from "@/lib/format";
 import {
   getMatch,
@@ -56,6 +59,7 @@ export function MatchDetailView({
 }) {
   const { data, error, isLoading } = useBootstrap();
   const router = useRouter();
+  const [tab, setTab] = useState<"lineups" | "overview">("overview");
 
   if (isLoading || !data) {
     return <LoadingState label="Loading match" />;
@@ -73,9 +77,11 @@ export function MatchDetailView({
 
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
+  // Full event list (incl. substitutions) for the lineup badges.
+  const allEvents = getMatchEvents(data, match.id);
   // Goals and cards with a named player; substitutions and VAR reversals
   // (disallowed goals, missed penalties) are noise in a picks app.
-  const events = getMatchEvents(data, match.id).filter(
+  const events = allEvents.filter(
     (event) =>
       ["goal", "yellow_card", "red_card"].includes(event.type) &&
       event.playerName &&
@@ -149,6 +155,41 @@ export function MatchDetailView({
         </p>
       </section>
 
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          aria-pressed={tab === "overview"}
+          className={cn(
+            "rounded-lg border border-black/10 px-3 py-2 text-sm font-black shadow-sm",
+            tab === "overview" ? "bg-emerald-950 text-white" : "bg-white text-stone-950",
+          )}
+          onClick={() => setTab("overview")}
+          type="button"
+        >
+          Overview
+        </button>
+        <button
+          aria-pressed={tab === "lineups"}
+          className={cn(
+            "rounded-lg border border-black/10 px-3 py-2 text-sm font-black shadow-sm",
+            tab === "lineups" ? "bg-emerald-950 text-white" : "bg-white text-stone-950",
+          )}
+          onClick={() => setTab("lineups")}
+          type="button"
+        >
+          Line-ups
+        </button>
+      </div>
+
+      {tab === "lineups" ? (
+        <MatchLineups
+          away={away}
+          events={allEvents}
+          home={home}
+          isDemo={data.authMode === "demo"}
+          matchId={match.id}
+        />
+      ) : (
+        <>
       <PredictionForm data={data} match={match} />
 
       <section className="rounded-lg border border-black/10 bg-white p-4">
@@ -240,6 +281,8 @@ export function MatchDetailView({
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

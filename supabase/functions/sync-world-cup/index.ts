@@ -11,11 +11,30 @@ type SyncResult = {
 
 type SyncMode =
   | "live"
+  | "lineups"
   | "post-match"
   | "reference"
   | "squads"
   | "stats"
   | "form";
+
+type ApiFootballLineupPlayer = {
+  player?: {
+    grid?: string | null;
+    id?: number;
+    name?: string;
+    number?: number;
+    pos?: string;
+  };
+};
+
+type ApiFootballLineup = {
+  coach?: { name?: string };
+  formation?: string | null;
+  startXI?: ApiFootballLineupPlayer[];
+  substitutes?: ApiFootballLineupPlayer[];
+  team?: { id?: number };
+};
 
 // Stage category for the per-stage score-prediction setting (mirrors
 // src/lib/stages.ts). 1X2 stages never award the exact-score bonus.
@@ -254,6 +273,7 @@ function syncModeFromRequest(request: Request): SyncMode {
 
   if (
     mode === "live" ||
+    mode === "lineups" ||
     mode === "post-match" ||
     mode === "reference" ||
     mode === "squads" ||
@@ -280,6 +300,10 @@ async function runSyncMode(
 
   if (mode === "post-match") {
     return runPostMatchSync(supabase);
+  }
+
+  if (mode === "lineups") {
+    return runLineupSync(supabase);
   }
 
   if (mode === "stats") {
@@ -476,6 +500,88 @@ async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<S
   } finally {
     await supabase.rpc("release_world_cup_sync_lock", { lock_key: syncLockKey });
   }
+}
+
+// Fetch starting XIs for matches kicking off within the next hour (or just
+// kicked off) that we don't have yet. Runs every minute via cron; once a
+// match's lineup is stored we skip it, so it self-throttles to ~0 API calls
+// outside the pre-match window.
+async function runLineupSync(
+  supabase: ReturnType<typeof createClient>,
+): Promise<SyncResult> {
+  const now = Date.now();
+  const windowStart = new Date(now - 30 * 60 * 1000).toISOString();
+  const windowEnd = new Date(now + 60 * 60 * 1000).toISOString();
+
+  const { data: candidates } = await supabase
+    .from("matches")
+    .select("id,api_football_fixture_id,kickoff_at")
+    .in("status", ["scheduled", "live", "halftime"])
+    .gte("kickoff_at", windowStart)
+    .lte("kickoff_at", windowEnd);
+
+  if (!candidates || candidates.length === 0) {
+    return { message: "No matches in lineup window.", requestsUsed: 0 };
+  }
+
+  const { data: existing } = await supabase
+    .from("match_lineups")
+    .select("match_id")
+    .in("match_id", candidates.map((match) => match.id));
+  const haveLineup = new Set((existing ?? []).map((row) => row.match_id));
+  const todo = candidates.filter(
+    (match) => !haveLineup.has(match.id) && match.api_football_fixture_id,
+  );
+
+  let requestsUsed = 0;
+  let fetched = 0;
+
+  for (const match of todo) {
+    const response = await fetchApiFootball("/fixtures/lineups", {
+      fixture: match.api_football_fixture_id,
+    });
+    requestsUsed += 1;
+    const lineups = (response.response ?? []) as ApiFootballLineup[];
+
+    // Not published yet — try again on the next cron tick.
+    if (lineups.length === 0) {
+      continue;
+    }
+
+    const toRow = (player: ApiFootballLineupPlayer, starter: boolean) => ({
+      grid: starter ? player.player?.grid ?? null : null,
+      id: player.player?.id ? String(player.player.id) : null,
+      name: player.player?.name ?? "",
+      number: player.player?.number ?? null,
+      pos: player.player?.pos ?? null,
+      starter,
+    });
+
+    const rows = lineups
+      .filter((lineup) => lineup.team?.id)
+      .map((lineup) => ({
+        coach: lineup.coach?.name ?? null,
+        formation: lineup.formation ?? null,
+        match_id: match.id,
+        players: [
+          ...(lineup.startXI ?? []).map((player) => toRow(player, true)),
+          ...(lineup.substitutes ?? []).map((player) => toRow(player, false)),
+        ],
+        team_id: String(lineup.team!.id),
+      }));
+
+    if (rows.length > 0) {
+      await supabase
+        .from("match_lineups")
+        .upsert(rows, { onConflict: "match_id,team_id" });
+      fetched += 1;
+    }
+  }
+
+  return {
+    message: `Lineups: ${fetched} fetched, ${todo.length - fetched} still pending.`,
+    requestsUsed,
+  };
 }
 
 async function runReferenceSync(
