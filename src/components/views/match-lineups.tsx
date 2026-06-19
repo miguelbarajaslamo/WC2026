@@ -145,8 +145,8 @@ export function MatchLineups({
       <div className="rounded-lg border border-dashed border-black/20 bg-white p-6 text-center">
         <p className="font-black">Line-ups not in yet</p>
         <p className="mx-auto mt-1 max-w-sm text-sm font-bold text-stone-500">
-          Starting XIs usually land about an hour before kickoff. This refreshes
-          automatically.
+          Starting XIs are usually confirmed 30–60 minutes before kickoff. This
+          page refreshes automatically when they land.
         </p>
       </div>
     );
