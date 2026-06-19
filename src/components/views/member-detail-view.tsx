@@ -62,6 +62,9 @@ export function MemberDetailView({ userId }: { userId: string }) {
   const history = getVisibleMatches(data).filter(
     (match) =>
       getUserPrediction(data, match.id, userId) || isMatchLocked(match),
+  ).sort(
+    (left, right) =>
+      new Date(right.kickoffAt).getTime() - new Date(left.kickoffAt).getTime(),
   );
 
   const specials = specialSlots.map((slot) => {
