@@ -381,14 +381,19 @@ function PlayerToken({
           ) : null}
         </div>
         {badges.goals > 0 ? (
-          <span className="absolute -left-1.5 -top-1.5 z-10 grid min-w-[14px] place-items-center rounded-full bg-white px-0.5 text-[8px] leading-none shadow">
-            ⚽{badges.goals > 1 ? badges.goals : ""}
+          <span className="absolute -left-3 -top-3 z-10 flex items-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]">
+            <span className="text-[18px] leading-none">⚽</span>
+            {badges.goals > 1 ? (
+              <span className="-ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-stone-950 px-1 text-[9px] font-black leading-none text-white ring-1 ring-white/70">
+                {badges.goals}
+              </span>
+            ) : null}
           </span>
         ) : null}
         {badges.red ? (
-          <span className="absolute -right-1 -top-1.5 z-10 h-3 w-2 rounded-[1px] bg-red-500 shadow" />
+          <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-red-500 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-red-950/30" />
         ) : badges.yellow ? (
-          <span className="absolute -right-1 -top-1.5 z-10 h-3 w-2 rounded-[1px] bg-yellow-400 shadow" />
+          <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-yellow-300 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-yellow-700/30" />
         ) : null}
         {badges.subbedOff ? (
           <span className="absolute -bottom-1 -right-1 z-10 grid size-3.5 place-items-center rounded-full bg-red-600 text-[8px] font-black leading-none text-white shadow">
