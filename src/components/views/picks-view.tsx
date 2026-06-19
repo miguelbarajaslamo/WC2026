@@ -26,7 +26,9 @@ export function PicksView() {
     }
     return {
       all: filterPicksMatches(data, "all"),
-      locked: filterPicksMatches(data, "locked"),
+      // Locked matches read most-recently-locked first; the others stay
+      // chronological so upcoming matches to pick sit at the top.
+      locked: filterPicksMatches(data, "locked").reverse(),
       missing: filterPicksMatches(data, "missing"),
       open: filterPicksMatches(data, "open"),
     };
