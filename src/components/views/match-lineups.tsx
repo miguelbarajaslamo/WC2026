@@ -362,7 +362,7 @@ function PlayerToken({
 
   return (
     <div
-      className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+      className="absolute flex w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
       style={{ left: `${left}%`, top: `${top}%` }}
     >
       <div className="relative size-8">
@@ -402,7 +402,14 @@ function PlayerToken({
         ) : null}
       </div>
 
-      <span className="mt-0.5 max-w-full truncate rounded bg-black/35 px-1 text-[9px] font-bold leading-tight text-white">
+      <span
+        className="mt-0.5 max-w-full overflow-hidden rounded bg-black/35 px-1 text-center text-[9px] font-bold leading-[1.05] text-white"
+        style={{
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 2,
+          display: "-webkit-box",
+        }}
+      >
         {player.number ? `${player.number} ` : ""}
         {player.name}
       </span>

@@ -29,6 +29,7 @@ export function LeaderboardView() {
         </h2>
         <p className="mt-2 text-sm font-bold text-white/70">
           Scores update after finished matches and admin recalculations.
+          Ties on points are broken by best streak.
         </p>
         <Link
           className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-white px-3 text-xs font-black uppercase tracking-wide text-emerald-950"
