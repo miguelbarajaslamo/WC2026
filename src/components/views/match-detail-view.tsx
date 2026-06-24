@@ -27,9 +27,10 @@ import { matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type { MatchEvent } from "@/lib/types";
 
-// Goals and cards only — substitutions and unmapped events (VAR etc., which the
-// sync falls back to "goal" with no player) are noise in a picks app.
 function eventIcon(event: MatchEvent) {
+  if (event.type === "substitution") {
+    return "↕";
+  }
   if (event.type === "yellow_card") {
     return "🟨";
   }
@@ -37,6 +38,26 @@ function eventIcon(event: MatchEvent) {
     return "🟥";
   }
   return "⚽";
+}
+
+function eventTitle(event: MatchEvent) {
+  if (event.type === "substitution") {
+    return `In: ${event.playerName || "Player"}`;
+  }
+
+  return event.playerName;
+}
+
+function eventDetail(event: MatchEvent) {
+  if (event.type === "substitution") {
+    return event.assistName ? `Out: ${event.assistName}` : undefined;
+  }
+
+  if (event.type === "goal" && event.assistName) {
+    return `Assist: ${event.assistName}`;
+  }
+
+  return undefined;
 }
 
 function goalDetail(event: MatchEvent) {
@@ -79,11 +100,9 @@ export function MatchDetailView({
   const away = getTeam(data, match.awayTeamId);
   // Full event list (incl. substitutions) for the lineup badges.
   const allEvents = getMatchEvents(data, match.id);
-  // Goals and cards with a named player; substitutions and VAR reversals
-  // (disallowed goals, missed penalties) are noise in a picks app.
   const events = allEvents.filter(
     (event) =>
-      ["goal", "yellow_card", "red_card"].includes(event.type) &&
+      ["goal", "yellow_card", "red_card", "substitution"].includes(event.type) &&
       event.playerName &&
       event.playerName.trim(),
   );
@@ -200,6 +219,7 @@ export function MatchDetailView({
           <div className="mt-3 space-y-3">
             {events.map((event) => {
               const team = getTeam(data, event.teamId);
+              const detail = eventDetail(event);
               return (
                 <div
                   className="grid grid-cols-[36px_22px_28px_1fr] items-center gap-2.5 border-b border-black/10 pb-3 last:border-0 last:pb-0"
@@ -213,13 +233,13 @@ export function MatchDetailView({
                   </span>
                   <Flag code={team.iso2} label={team.name} size="sm" />
                   <p className="text-sm font-bold">
-                    {event.playerName}
+                    {eventTitle(event)}
                     {event.type === "goal" ? (
                       <span className="text-stone-500">{goalDetail(event)}</span>
                     ) : null}
-                    {event.assistName ? (
+                    {detail ? (
                       <span className="block text-xs text-stone-500">
-                        Assist: {event.assistName}
+                        {detail}
                       </span>
                     ) : null}
                   </p>

@@ -45,7 +45,13 @@ function namesMatch(a: string | undefined, b: string) {
   return normalize(a) === normalize(b) || lastName(a) === lastName(b);
 }
 
-type PlayerBadges = { goals: number; red: boolean; subbedOff: boolean; yellow: boolean };
+type PlayerBadges = {
+  goals: number;
+  red: boolean;
+  subbedOff: boolean;
+  subbedOn: boolean;
+  yellow: boolean;
+};
 
 function eventMatchesPlayer({
   event,
@@ -77,6 +83,7 @@ function badgesFor(
   let goals = 0;
   let yellow = false;
   let red = false;
+  let subbedOn = false;
   let subbedOff = false;
   for (const event of events) {
     if (
@@ -112,6 +119,17 @@ function badgesFor(
       red = true;
     } else if (
       event.type === "substitution" &&
+      eventMatchesPlayer({
+        event,
+        player,
+        playerEventId: event.playerId,
+        teamId,
+      })
+    ) {
+      // API substitution: player = on, assist = off.
+      subbedOn = true;
+    } else if (
+      event.type === "substitution" &&
       event.teamId === teamId &&
       (player.id && event.assistId
         ? player.id === event.assistId
@@ -121,7 +139,7 @@ function badgesFor(
       subbedOff = true;
     }
   }
-  return { goals, red, subbedOff, yellow };
+  return { goals, red, subbedOff, subbedOn, yellow };
 }
 
 type Placed = { left: number; player: LineupPlayer; top: number };
@@ -222,6 +240,14 @@ export function MatchLineups({
       </div>
 
       <Pitch
+        away={away}
+        awayLineup={awayLineup}
+        events={events}
+        home={home}
+        homeLineup={homeLineup}
+        view={view}
+      />
+      <Bench
         away={away}
         awayLineup={awayLineup}
         events={events}
@@ -345,6 +371,121 @@ function FormationTag({
   );
 }
 
+function Bench({
+  away,
+  awayLineup,
+  events,
+  home,
+  homeLineup,
+  view,
+}: {
+  away: Team;
+  awayLineup?: LineupRow;
+  events: MatchEvent[];
+  home: Team;
+  homeLineup?: LineupRow;
+  view: "away" | "full" | "home";
+}) {
+  const sections =
+    view === "full"
+      ? [
+          { lineup: homeLineup, team: home },
+          { lineup: awayLineup, team: away },
+        ]
+      : [
+          {
+            lineup: view === "home" ? homeLineup : awayLineup,
+            team: view === "home" ? home : away,
+          },
+        ];
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-black uppercase tracking-wide text-stone-500">
+        Substitutes
+      </h3>
+      {sections.map(({ lineup, team }) => (
+        <BenchSection
+          events={events}
+          key={team.id}
+          lineup={lineup}
+          team={team}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BenchSection({
+  events,
+  lineup,
+  team,
+}: {
+  events: MatchEvent[];
+  lineup?: LineupRow;
+  team: Team;
+}) {
+  const players = (lineup?.players ?? []).filter((player) => !player.starter);
+
+  if (players.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-black/5 bg-stone-50 px-3 py-2">
+        <p className="text-xs font-black uppercase tracking-wide text-stone-500">
+          {team.shortName}
+        </p>
+        {lineup?.coach ? (
+          <p className="truncate text-xs font-bold text-stone-500">
+            Coach: {lineup.coach}
+          </p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2 p-2">
+        {players.map((player) => (
+          <BenchPlayer
+            badges={badgesFor(player, team.id, events)}
+            key={`${team.id}-${player.id ?? player.name}`}
+            player={player}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BenchPlayer({
+  badges,
+  player,
+}: {
+  badges: PlayerBadges;
+  player: LineupPlayer;
+}) {
+  return (
+    <div className="grid grid-cols-[34px_1fr] items-center gap-2 rounded-md bg-stone-50 p-2">
+      <PlayerPortrait badges={badges} player={player} />
+      <div className="min-w-0">
+        <p
+          className="overflow-hidden text-xs font-black leading-tight text-stone-950"
+          style={{
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            display: "-webkit-box",
+          }}
+        >
+          {player.number ? `${player.number} ` : ""}
+          {player.name}
+        </p>
+        <p className="mt-0.5 text-[10px] font-bold uppercase text-stone-500">
+          {player.pos ?? "Sub"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PlayerToken({
   badges,
   left,
@@ -356,51 +497,12 @@ function PlayerToken({
   player: LineupPlayer;
   top: number;
 }) {
-  const photo = player.id
-    ? `https://media.api-sports.io/football/players/${player.id}.png`
-    : null;
-
   return (
     <div
       className="absolute flex w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
       style={{ left: `${left}%`, top: `${top}%` }}
     >
-      <div className="relative size-8">
-        <div className="grid size-8 place-items-center overflow-hidden rounded-full bg-stone-700 text-[10px] font-black text-white ring-2 ring-white">
-          {player.number ?? ""}
-          {photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={player.name}
-              className="absolute inset-0 size-full object-cover"
-              onError={(event) => {
-                event.currentTarget.style.visibility = "hidden";
-              }}
-              src={photo}
-            />
-          ) : null}
-        </div>
-        {badges.goals > 0 ? (
-          <span className="absolute -left-3 -top-3 z-10 flex items-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]">
-            <span className="text-[18px] leading-none">⚽</span>
-            {badges.goals > 1 ? (
-              <span className="-ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-stone-950 px-1 text-[9px] font-black leading-none text-white ring-1 ring-white/70">
-                {badges.goals}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
-        {badges.red ? (
-          <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-red-500 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-red-950/30" />
-        ) : badges.yellow ? (
-          <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-yellow-300 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-yellow-700/30" />
-        ) : null}
-        {badges.subbedOff ? (
-          <span className="absolute -bottom-1 -right-1 z-10 grid size-3.5 place-items-center rounded-full bg-red-600 text-[8px] font-black leading-none text-white shadow">
-            ↓
-          </span>
-        ) : null}
-      </div>
+      <PlayerPortrait badges={badges} player={player} />
 
       <span
         className="mt-0.5 max-w-full overflow-hidden rounded bg-black/35 px-1 text-center text-[9px] font-bold leading-[1.05] text-white"
@@ -413,6 +515,62 @@ function PlayerToken({
         {player.number ? `${player.number} ` : ""}
         {player.name}
       </span>
+    </div>
+  );
+}
+
+function PlayerPortrait({
+  badges,
+  player,
+}: {
+  badges: PlayerBadges;
+  player: LineupPlayer;
+}) {
+  const photo = player.id
+    ? `https://media.api-sports.io/football/players/${player.id}.png`
+    : null;
+
+  return (
+    <div className="relative size-8 shrink-0">
+      <div className="grid size-8 place-items-center overflow-hidden rounded-full bg-stone-700 text-[10px] font-black text-white ring-2 ring-white">
+        {player.number ?? ""}
+        {photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={player.name}
+            className="absolute inset-0 size-full object-cover"
+            onError={(event) => {
+              event.currentTarget.style.visibility = "hidden";
+            }}
+            src={photo}
+          />
+        ) : null}
+      </div>
+      {badges.goals > 0 ? (
+        <span className="absolute -left-3 -top-3 z-10 flex items-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]">
+          <span className="text-[18px] leading-none">⚽</span>
+          {badges.goals > 1 ? (
+            <span className="-ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-stone-950 px-1 text-[9px] font-black leading-none text-white ring-1 ring-white/70">
+              {badges.goals}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+      {badges.red ? (
+        <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-red-500 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-red-950/30" />
+      ) : badges.yellow ? (
+        <span className="absolute -right-2 -top-2 z-10 h-4 w-3 rotate-6 rounded-[2px] bg-yellow-300 shadow-[0_1px_3px_rgba(0,0,0,0.55)] ring-1 ring-yellow-700/30" />
+      ) : null}
+      {badges.subbedOn ? (
+        <span className="absolute -bottom-1 -left-1 z-10 grid size-3.5 place-items-center rounded-full bg-emerald-600 text-[8px] font-black leading-none text-white shadow">
+          ↑
+        </span>
+      ) : null}
+      {badges.subbedOff ? (
+        <span className="absolute -bottom-1 -right-1 z-10 grid size-3.5 place-items-center rounded-full bg-red-600 text-[8px] font-black leading-none text-white shadow">
+          ↓
+        </span>
+      ) : null}
     </div>
   );
 }
