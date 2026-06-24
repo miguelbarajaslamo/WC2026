@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { playerNamesMatch } from "@/lib/player-name";
 import type { MatchEvent, Team } from "@/lib/types";
 
 type LineupPlayer = {
@@ -21,29 +22,6 @@ type LineupRow = {
   players: LineupPlayer[];
   team_id: string;
 };
-
-function normalize(name: string) {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\./g, "")
-    .trim();
-}
-
-function lastName(name: string) {
-  const parts = normalize(name).split(/\s+/);
-  return parts[parts.length - 1] ?? "";
-}
-
-// Match an event name to a lineup name by full normalized form, else last name
-// (the feed mixes "F. Balogun" and "Folarin Balogun").
-function namesMatch(a: string | undefined, b: string) {
-  if (!a) {
-    return false;
-  }
-  return normalize(a) === normalize(b) || lastName(a) === lastName(b);
-}
 
 type PlayerBadges = {
   goals: number;
@@ -72,7 +50,7 @@ function eventMatchesPlayer({
     return player.id === playerEventId;
   }
 
-  return namesMatch(event.playerName, player.name);
+  return playerNamesMatch(event.playerName, player.name);
 }
 
 function badgesFor(
@@ -133,7 +111,7 @@ function badgesFor(
       event.teamId === teamId &&
       (player.id && event.assistId
         ? player.id === event.assistId
-        : namesMatch(event.assistName, player.name))
+        : playerNamesMatch(event.assistName, player.name))
     ) {
       // API substitution feed: player = off, assist = on.
       subbedOn = true;
