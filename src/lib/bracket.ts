@@ -1,17 +1,21 @@
+import { sortedLiveStandings } from "@/lib/standings";
+import {
+  allocatedThirdPlaceGroup,
+  type ThirdPlaceSlot,
+} from "@/lib/third-place-allocation";
 import type { BootstrapData, StandingRow, Team } from "@/lib/types";
 
 // Official 2026 World Cup knockout structure (matches 73–104). Source: FIFA
 // bracket as published (en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage).
-// The eight third-place slots list their candidate groups; the exact team is
-// only fixed once the group stage ends (per FIFA's combination table), so we
-// show the candidate set until then.
+// The eight third-place slots use FIFA's third-place allocation table. While
+// group play is live, this projects "as it stands" from current live tables.
 
 export type BracketRound = "R32" | "R16" | "QF" | "SF" | "Final";
 
 type Slot =
   | { group: string; kind: "winner" }
   | { group: string; kind: "runner" }
-  | { groups: string[]; kind: "third" }
+  | { groups: string[]; kind: "third"; slot: ThirdPlaceSlot }
   | { kind: "match"; matchNo: number };
 
 type BracketMatch = {
@@ -23,25 +27,29 @@ type BracketMatch = {
 
 const w = (group: string): Slot => ({ group, kind: "winner" });
 const r = (group: string): Slot => ({ group, kind: "runner" });
-const t = (groups: string[]): Slot => ({ groups, kind: "third" });
+const t = (groups: string[], slot: ThirdPlaceSlot): Slot => ({
+  groups,
+  kind: "third",
+  slot,
+});
 const m = (matchNo: number): Slot => ({ kind: "match", matchNo });
 
 export const BRACKET: BracketMatch[] = [
   { away: r("B"), home: r("A"), matchNo: 73, round: "R32" },
-  { away: t(["A", "B", "C", "D", "F"]), home: w("E"), matchNo: 74, round: "R32" },
+  { away: t(["A", "B", "C", "D", "F"], "E"), home: w("E"), matchNo: 74, round: "R32" },
   { away: r("C"), home: w("F"), matchNo: 75, round: "R32" },
   { away: r("F"), home: w("C"), matchNo: 76, round: "R32" },
-  { away: t(["C", "D", "F", "G", "H"]), home: w("I"), matchNo: 77, round: "R32" },
+  { away: t(["C", "D", "F", "G", "H"], "I"), home: w("I"), matchNo: 77, round: "R32" },
   { away: r("I"), home: r("E"), matchNo: 78, round: "R32" },
-  { away: t(["C", "E", "F", "H", "I"]), home: w("A"), matchNo: 79, round: "R32" },
-  { away: t(["E", "H", "I", "J", "K"]), home: w("L"), matchNo: 80, round: "R32" },
-  { away: t(["B", "E", "F", "I", "J"]), home: w("D"), matchNo: 81, round: "R32" },
-  { away: t(["A", "E", "H", "I", "J"]), home: w("G"), matchNo: 82, round: "R32" },
+  { away: t(["C", "E", "F", "H", "I"], "A"), home: w("A"), matchNo: 79, round: "R32" },
+  { away: t(["E", "H", "I", "J", "K"], "L"), home: w("L"), matchNo: 80, round: "R32" },
+  { away: t(["B", "E", "F", "I", "J"], "D"), home: w("D"), matchNo: 81, round: "R32" },
+  { away: t(["A", "E", "H", "I", "J"], "G"), home: w("G"), matchNo: 82, round: "R32" },
   { away: r("L"), home: r("K"), matchNo: 83, round: "R32" },
   { away: r("J"), home: w("H"), matchNo: 84, round: "R32" },
-  { away: t(["E", "F", "G", "I", "J"]), home: w("B"), matchNo: 85, round: "R32" },
+  { away: t(["E", "F", "G", "I", "J"], "B"), home: w("B"), matchNo: 85, round: "R32" },
   { away: r("H"), home: w("J"), matchNo: 86, round: "R32" },
-  { away: t(["D", "E", "I", "J", "L"]), home: w("K"), matchNo: 87, round: "R32" },
+  { away: t(["D", "E", "I", "J", "L"], "K"), home: w("K"), matchNo: 87, round: "R32" },
   { away: r("G"), home: r("D"), matchNo: 88, round: "R32" },
 
   { away: m(77), home: m(74), matchNo: 89, round: "R16" },
@@ -96,25 +104,49 @@ function sortGroup(rows: StandingRow[]): StandingRow[] {
   );
 }
 
-// Project the bracket against the current standings. Group winners/runners-up
-// resolve to the current 1st/2nd once every team has played at least once;
-// before that (and always for third-place and later-round slots) we show the
-// position/candidate/"winner of" placeholder, like a standard bracket.
+function groupLetter(groupName: string) {
+  return groupName.match(/\bGroup\s+([A-L])\b/)?.[1] ?? null;
+}
+
+function rankThirdPlaceGroups(standings: Record<string, StandingRow[]>) {
+  return Object.entries(standings)
+    .map(([groupName, rows]) => ({
+      group: groupLetter(groupName),
+      row: rows[2],
+    }))
+    .filter(
+      (entry): entry is { group: string; row: StandingRow } =>
+        Boolean(entry.group && entry.row),
+    )
+    .sort((left, right) => {
+      const leftGoalDiff = left.row.goalsFor - left.row.goalsAgainst;
+      const rightGoalDiff = right.row.goalsFor - right.row.goalsAgainst;
+
+      return (
+        right.row.points - left.row.points ||
+        rightGoalDiff - leftGoalDiff ||
+        right.row.goalsFor - left.row.goalsFor ||
+        left.group.localeCompare(right.group)
+      );
+    })
+    .slice(0, 8)
+    .map((entry) => entry.group);
+}
+
+// Project the bracket against current live standings. Winners/runners-up
+// resolve as soon as teams are present in a group table; third-place slots
+// resolve once we can rank eight projected third-place teams.
 export function projectBracket(data: BootstrapData): BracketRoundView[] {
   const teamById = new Map<string, Team>(data.teams.map((team) => [team.id, team]));
   const sortedByGroup = new Map<string, StandingRow[]>();
-  for (const [group, rows] of Object.entries(data.standings)) {
+  const projectedStandings = sortedLiveStandings(data);
+  for (const [group, rows] of Object.entries(projectedStandings)) {
     sortedByGroup.set(group, sortGroup(rows));
   }
 
-  const allRows = Object.values(data.standings).flat();
-  const everyTeamPlayedOnce =
-    allRows.length >= 24 && allRows.every((row) => row.played >= 1);
+  const projectedThirdPlaceGroups = rankThirdPlaceGroups(projectedStandings);
 
   const teamSlot = (group: string, index: number, fallback: string): ResolvedSlot => {
-    if (!everyTeamPlayedOnce) {
-      return { kind: "placeholder", label: fallback };
-    }
     const row = sortedByGroup.get(`Group ${group}`)?.[index];
     const team = row ? teamById.get(row.teamId) : undefined;
     if (!team) {
@@ -131,6 +163,13 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
       return teamSlot(slot.group, 1, `2${slot.group}`);
     }
     if (slot.kind === "third") {
+      const allocatedGroup =
+        projectedThirdPlaceGroups.length === 8
+          ? allocatedThirdPlaceGroup(projectedThirdPlaceGroups, slot.slot)
+          : null;
+      if (allocatedGroup) {
+        return teamSlot(allocatedGroup, 2, `3${allocatedGroup}`);
+      }
       return { kind: "placeholder", label: `3rd ${slot.groups.join("/")}` };
     }
     return { kind: "placeholder", label: `Winner M${slot.matchNo}` };

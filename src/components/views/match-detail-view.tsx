@@ -42,7 +42,7 @@ function eventIcon(event: MatchEvent) {
 
 function eventTitle(event: MatchEvent) {
   if (event.type === "substitution") {
-    return `In: ${event.playerName || "Player"}`;
+    return `Out: ${event.playerName || "Player"}`;
   }
 
   return event.playerName;
@@ -50,7 +50,7 @@ function eventTitle(event: MatchEvent) {
 
 function eventDetail(event: MatchEvent) {
   if (event.type === "substitution") {
-    return event.assistName ? `Out: ${event.assistName}` : undefined;
+    return event.assistName ? `In: ${event.assistName}` : undefined;
   }
 
   if (event.type === "goal" && event.assistName) {

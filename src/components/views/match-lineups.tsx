@@ -126,8 +126,8 @@ function badgesFor(
         teamId,
       })
     ) {
-      // API substitution: player = on, assist = off.
-      subbedOn = true;
+      // API substitution feed: player = off, assist = on.
+      subbedOff = true;
     } else if (
       event.type === "substitution" &&
       event.teamId === teamId &&
@@ -135,8 +135,8 @@ function badgesFor(
         ? player.id === event.assistId
         : namesMatch(event.assistName, player.name))
     ) {
-      // API substitution: player = on, assist = off.
-      subbedOff = true;
+      // API substitution feed: player = off, assist = on.
+      subbedOn = true;
     }
   }
   return { goals, red, subbedOff, subbedOn, yellow };
