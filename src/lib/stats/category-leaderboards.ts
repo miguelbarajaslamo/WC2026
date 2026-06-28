@@ -199,7 +199,12 @@ export function aggregateCountryCardPoints({
 }): CountryCardCategoryRow[] {
   const teamsById = teamMap(teams);
   const freshnessByMatch = matchFreshnessMap(matches);
-  const statMatchIds = new Set(stats.map((stat) => stat.matchId).filter(Boolean));
+  const cardEventMatchIds = new Set(
+    events
+      .filter((event) => event.type === "yellow_card" || event.type === "red_card")
+      .map((event) => event.matchId)
+      .filter(Boolean),
+  );
   const grouped = new Map<string, CountryCardCategoryRow & { value: number }>();
 
   function ensureRow(teamId: string, updatedAt?: string) {
@@ -228,6 +233,10 @@ export function aggregateCountryCardPoints({
   }
 
   stats.forEach((stat) => {
+    if (stat.matchId && cardEventMatchIds.has(stat.matchId)) {
+      return;
+    }
+
     const row = ensureRow(stat.teamId, stat.updatedAt);
     row.yellowCards += stat.yellowCards;
     row.redCards += stat.redCards;
@@ -236,11 +245,7 @@ export function aggregateCountryCardPoints({
   });
 
   events
-    .filter(
-      (event) =>
-        (event.type === "yellow_card" || event.type === "red_card") &&
-        (!event.matchId || !statMatchIds.has(event.matchId)),
-    )
+    .filter((event) => event.type === "yellow_card" || event.type === "red_card")
     .forEach((event) => {
       const row = ensureRow(event.teamId, freshnessByMatch.get(event.matchId));
 

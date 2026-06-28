@@ -147,6 +147,37 @@ describe("country card points", () => {
     ]);
   });
 
+  it("uses card events over player stats for matches with event cards", () => {
+    const rows = aggregateCountryCardPoints({
+      events: [
+        event("swe-yellow", "m1", "swe", "yellow_card", "Victor Lindelof"),
+        event("swe-red", "m1", "swe", "red_card", "Victor Lindelof"),
+      ],
+      matches,
+      stats: [
+        {
+          assists: 0,
+          goals: 0,
+          matchId: "m1",
+          playerName: "Victor Lindelof",
+          redCards: 1,
+          teamId: "swe",
+          yellowCards: 0,
+        },
+      ],
+      teams,
+    });
+
+    expect(rows).toMatchObject([
+      {
+        points: 3,
+        redCards: 1,
+        teamId: "swe",
+        yellowCards: 1,
+      },
+    ]);
+  });
+
   it("counts all tied card-points countries as winning options", () => {
     const rows = aggregateCountryCardPoints({
       events: [

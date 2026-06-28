@@ -1336,6 +1336,8 @@ async function upsertFixturePlayerStats(
     .from("match_player_stats")
     .upsert(rows, { onConflict: "match_id,player_id" });
 
+  await reconcileFixturePlayerStatsFromEvents(supabase, fixtureId);
+
   // Self-heal: drop rows for this fixture whose player_id isn't in the current
   // provider set — clears stale duplicates left by the old name-based key.
   const currentPlayerIds = rows
@@ -1354,6 +1356,155 @@ async function upsertFixturePlayerStats(
   }
 
   await recalculateTournamentPlayerStats(supabase);
+}
+
+async function reconcileFixturePlayerStatsFromEvents(
+  supabase: ReturnType<typeof createClient>,
+  fixtureId: number,
+) {
+  const matchId = String(fixtureId);
+  const { data: events, error: eventsError } = await supabase
+    .from("match_events")
+    .select("assist_id,assist_name,detail,event_type,player_id,player_name,team_id")
+    .eq("match_id", matchId);
+
+  if (eventsError) {
+    throw new Error(eventsError.message);
+  }
+
+  const corrections = new Map<string, {
+    assists: number;
+    player_id: string;
+    player_name: string;
+    red_cards: number;
+    team_id: string;
+    yellow_cards: number;
+  }>();
+
+  function addCorrection({
+    assists = 0,
+    player_id,
+    player_name,
+    red_cards = 0,
+    team_id,
+    yellow_cards = 0,
+  }: {
+    assists?: number;
+    player_id?: string | null;
+    player_name?: string | null;
+    red_cards?: number;
+    team_id?: string | null;
+    yellow_cards?: number;
+  }) {
+    if (!player_id || !player_name || !team_id) {
+      return;
+    }
+
+    const key = `${team_id}:${player_id}`;
+    const current =
+      corrections.get(key) ??
+      {
+        assists: 0,
+        player_id,
+        player_name,
+        red_cards: 0,
+        team_id,
+        yellow_cards: 0,
+      };
+
+    current.assists += assists;
+    current.red_cards += red_cards;
+    current.yellow_cards += yellow_cards;
+    corrections.set(key, current);
+  }
+
+  for (const event of events ?? []) {
+    if (
+      event.event_type === "goal" &&
+      !((event.detail ?? "").toLowerCase().includes("own")) &&
+      !((event.detail ?? "").toLowerCase().includes("missed"))
+    ) {
+      addCorrection({
+        assists: 1,
+        player_id: event.assist_id,
+        player_name: event.assist_name,
+        team_id: event.team_id,
+      });
+    }
+
+    if (event.event_type === "yellow_card") {
+      addCorrection({
+        player_id: event.player_id,
+        player_name: event.player_name,
+        team_id: event.team_id,
+        yellow_cards: 1,
+      });
+    }
+
+    if (event.event_type === "red_card") {
+      addCorrection({
+        player_id: event.player_id,
+        player_name: event.player_name,
+        red_cards: 1,
+        team_id: event.team_id,
+      });
+    }
+  }
+
+  if (corrections.size === 0) {
+    return;
+  }
+
+  const playerIds = [...corrections.values()].map((row) => row.player_id);
+  const { data: stats, error: statsError } = await supabase
+    .from("match_player_stats")
+    .select(
+      "assists,goals,match_id,player_id,player_name,red_cards,team_id,yellow_cards",
+    )
+    .eq("match_id", matchId)
+    .in("player_id", playerIds);
+
+  if (statsError) {
+    throw new Error(statsError.message);
+  }
+
+  for (const stat of stats ?? []) {
+    const correction = corrections.get(`${stat.team_id}:${stat.player_id}`);
+
+    if (!correction) {
+      continue;
+    }
+
+    const nextAssists = Math.max(stat.assists ?? 0, correction.assists);
+    const nextYellowCards = Math.max(
+      stat.yellow_cards ?? 0,
+      correction.yellow_cards,
+    );
+    const nextRedCards = Math.max(stat.red_cards ?? 0, correction.red_cards);
+
+    if (
+      nextAssists === (stat.assists ?? 0) &&
+      nextYellowCards === (stat.yellow_cards ?? 0) &&
+      nextRedCards === (stat.red_cards ?? 0)
+    ) {
+      continue;
+    }
+
+    const { error } = await supabase
+      .from("match_player_stats")
+      .update({
+        assists: nextAssists,
+        red_cards: nextRedCards,
+        updated_at: new Date().toISOString(),
+        yellow_cards: nextYellowCards,
+      })
+      .eq("match_id", matchId)
+      .eq("player_id", stat.player_id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
 }
 
 async function recalculateTournamentPlayerStats(
