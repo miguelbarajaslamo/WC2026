@@ -141,10 +141,7 @@ export function buildLiveStandings(data: BootstrapData) {
   });
 
   data.matches.forEach((match) => {
-    const groupName =
-      normalizeWorldCupGroupName(match.groupName) ??
-      groups.get(match.homeTeamId) ??
-      groups.get(match.awayTeamId);
+    const groupName = normalizeWorldCupGroupName(match.groupName);
 
     if (!groupName) {
       return;

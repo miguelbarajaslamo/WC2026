@@ -111,4 +111,36 @@ describe("sortedLiveStandings", () => {
       ]),
     );
   });
+
+  it("does not let knockout matches move teams between groups", () => {
+    const standings = sortedLiveStandings({
+      ...data,
+      matches: [
+        ...data.matches,
+        {
+          ...baseMatch,
+          awayScore: 0,
+          awayTeamId: "bra",
+          groupName: undefined,
+          homeScore: 5,
+          homeTeamId: "mex",
+          id: "mex-bra-r32",
+          providerStatusCode: "FT",
+          stage: "Round of 32",
+          status: "finished",
+        } as Match,
+      ],
+    });
+
+    expect(standings["Group A"]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ played: 1, points: 1, teamId: "mex" }),
+      ]),
+    );
+    expect(standings["Group F"]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ played: 1, points: 0, teamId: "bra" }),
+      ]),
+    );
+  });
 });
