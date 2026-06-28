@@ -23,7 +23,7 @@ import {
   isMatchLocked,
 } from "@/lib/data/selectors";
 import { predictionResultLabel } from "@/lib/predictions";
-import { matchUsesScorePrediction } from "@/lib/stages";
+import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type { MatchEvent } from "@/lib/types";
 
@@ -108,10 +108,10 @@ export function MatchDetailView({
   );
   const predictions = getMatchPredictions(data, match.id);
   const locked = isMatchLocked(match);
-  const useScore = matchUsesScorePrediction(
-    data.pool.scorePredictionStages,
-    match.stage,
-  );
+  const knockout = isKnockoutStage(match.stage);
+  const useScore =
+    !knockout &&
+    matchUsesScorePrediction(data.pool.scorePredictionStages, match.stage);
   const distribution = predictions.reduce(
     (counts, prediction) => {
       counts[prediction.predictedResult] += 1;
@@ -263,9 +263,11 @@ export function MatchDetailView({
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
+            <div className={cn("grid gap-2", knockout ? "grid-cols-2" : "grid-cols-3")}>
               <DistributionPill label={home.shortName} value={distribution.home} />
-              <DistributionPill label="Draw" value={distribution.draw} />
+              {knockout ? null : (
+                <DistributionPill label="Draw" value={distribution.draw} />
+              )}
               <DistributionPill label={away.shortName} value={distribution.away} />
             </div>
             {predictions.map((prediction) => {

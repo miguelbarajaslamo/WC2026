@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
-import { matchUsesScorePrediction } from "@/lib/stages";
+import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PredictionResult } from "@/lib/types";
 
@@ -62,10 +62,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This match is locked" }, { status: 403 });
   }
 
-  const useScore = matchUsesScorePrediction(
-    pool.score_prediction_stages ?? [],
-    match.stage,
-  );
+  const knockout = isKnockoutStage(match.stage);
+  const useScore =
+    !knockout &&
+    matchUsesScorePrediction(pool.score_prediction_stages ?? [], match.stage);
 
   let predictedResult: PredictionResult;
   let homeScore: number;
@@ -85,6 +85,12 @@ export async function POST(request: Request) {
     // 1X2: a result-only pick. Scores are stored as 0-0 and ignored by scoring.
     if (!payload.result || !RESULTS.includes(payload.result)) {
       return NextResponse.json({ error: "Invalid prediction payload" }, { status: 400 });
+    }
+    if (knockout && payload.result === "draw") {
+      return NextResponse.json(
+        { error: "Knockout picks must choose who advances" },
+        { status: 400 },
+      );
     }
     predictedResult = payload.result;
     homeScore = 0;

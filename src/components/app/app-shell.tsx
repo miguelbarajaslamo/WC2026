@@ -18,7 +18,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChatUnreadBadge } from "@/components/app/chat-unread";
 import { PoolGate } from "@/components/app/pool-gate";
+import { useBootstrap } from "@/components/app/use-bootstrap";
 import { cn } from "@/lib/cn";
+import { groupStageComplete } from "@/lib/stages";
 
 const primaryNav = [
   { href: "/", icon: ClipboardList, label: "Today" },
@@ -55,8 +57,13 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { data } = useBootstrap();
+  const groupsDone = data ? groupStageComplete(data.matches) : false;
+  const visiblePrimaryNav = primaryNav.map((item) =>
+    item.href === "/groups" && groupsDone ? { ...item, label: "Finals" } : item,
+  );
   // Detail/sub views (anything not a primary/menu destination) get a back button.
-  const isTopLevel = [...primaryNav, ...menuNav].some(
+  const isTopLevel = [...visiblePrimaryNav, ...menuNav].some(
     (item) => item.href === pathname,
   );
 
@@ -143,7 +150,7 @@ export function AppShell({
       <div className="mx-auto grid max-w-6xl gap-0 md:grid-cols-[220px_1fr]">
         <aside className="sticky top-[calc(69px+var(--safe-top))] hidden h-[calc(100dvh-69px-var(--safe-top))] border-r border-black/10 bg-white p-3 md:block">
           <nav className="space-y-1">
-            {[...primaryNav, ...menuNav].map((item) => {
+            {[...visiblePrimaryNav, ...menuNav].map((item) => {
               const Icon = item.icon;
               const active = isActive(pathname, item.href);
               return (
@@ -175,7 +182,7 @@ export function AppShell({
       {/* No backdrop-blur here: compositing a blur over scrolling content janks mobile scroll. */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white px-2 pb-3 pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-          {primaryNav.map((item) => {
+          {visiblePrimaryNav.map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
             return (

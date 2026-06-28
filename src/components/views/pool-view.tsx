@@ -51,8 +51,9 @@ export function PoolView() {
           <p>Picks lock {data.pool.lockMinutesBeforeKickoff} minutes before kickoff.</p>
           <p>Other players&apos; picks reveal when the match locks.</p>
           <p>
-            Traditional scoring: correct winner or draw gives 3 points. Exact
-            score adds 3 more, for 6 total.
+            Traditional scoring: correct group-stage winner/draw gives 3 points.
+            Knockout picks are for who advances. Exact score adds 3 more when
+            score prediction is enabled.
           </p>
           <p>
             Pot scoring, if selected before lock, splits the match pot among

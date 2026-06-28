@@ -82,7 +82,7 @@ export function OnboardingView({ invite }: { invite?: string }) {
 
       <section className="grid gap-3">
         <RuleRow
-          body="Correct winner or draw gives 3 points. Exact score adds 3 more."
+          body="Group-stage winner/draw gives 3 points. Knockout picks choose who advances."
           icon={<Trophy size={20} />}
           title="Traditional scoring"
         />

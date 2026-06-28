@@ -9,13 +9,8 @@ import {
   getVisibleMatches,
   isMatchLocked,
 } from "@/lib/data/selectors";
+import { matchFinishedResult } from "@/lib/scoring/scoring";
 import { getSpecialsProgress, specialPoints, specialSlots } from "@/lib/specials";
-
-function actualResult(homeScore: number, awayScore: number) {
-  if (homeScore > awayScore) return "home";
-  if (awayScore > homeScore) return "away";
-  return "draw";
-}
 
 export function MemberDetailView({ userId }: { userId: string }) {
   const { data, error, isLoading } = useBootstrap();
@@ -48,12 +43,11 @@ export function MemberDetailView({ userId }: { userId: string }) {
       return false;
     }
     const match = finishedById.get(prediction.matchId);
-    if (!match || match.homeScore == null || match.awayScore == null) {
+    const result = match ? matchFinishedResult(match) : null;
+    if (!result) {
       return false;
     }
-    return (
-      prediction.predictedResult === actualResult(match.homeScore, match.awayScore)
-    );
+    return prediction.predictedResult === result;
   }).length;
 
   // History = every match that counts for them: any they picked, plus locked

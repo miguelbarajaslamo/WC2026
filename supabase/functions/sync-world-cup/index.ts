@@ -77,11 +77,13 @@ type ApiFootballFixture = {
       id: number;
       name: string;
       logo?: string;
+      winner?: boolean | null;
     };
     home: {
       id: number;
       name: string;
       logo?: string;
+      winner?: boolean | null;
     };
   };
 };
@@ -813,7 +815,7 @@ async function upsertLiveFixtures(
       status: mapFixtureStatus(item.fixture.status.short),
       updated_at: new Date().toISOString(),
       venue: item.fixture.venue?.name,
-      winner: determineResultFromNullableScores(item.goals.home, item.goals.away),
+      winner: determineFixtureWinner(item),
       ...(groupName !== null && { group_name: groupName }),
     };
   });
@@ -1374,6 +1376,7 @@ async function reconcileFixturePlayerStatsFromEvents(
 
   const corrections = new Map<string, {
     assists: number;
+    goals: number;
     player_id: string;
     player_name: string;
     red_cards: number;
@@ -1383,6 +1386,7 @@ async function reconcileFixturePlayerStatsFromEvents(
 
   function addCorrection({
     assists = 0,
+    goals = 0,
     player_id,
     player_name,
     red_cards = 0,
@@ -1390,6 +1394,7 @@ async function reconcileFixturePlayerStatsFromEvents(
     yellow_cards = 0,
   }: {
     assists?: number;
+    goals?: number;
     player_id?: string | null;
     player_name?: string | null;
     red_cards?: number;
@@ -1405,6 +1410,7 @@ async function reconcileFixturePlayerStatsFromEvents(
       corrections.get(key) ??
       {
         assists: 0,
+        goals: 0,
         player_id,
         player_name,
         red_cards: 0,
@@ -1413,17 +1419,35 @@ async function reconcileFixturePlayerStatsFromEvents(
       };
 
     current.assists += assists;
+    current.goals += goals;
     current.red_cards += red_cards;
     current.yellow_cards += yellow_cards;
     corrections.set(key, current);
   }
 
+  const hasGoalEvents = (events ?? []).some((event) => event.event_type === "goal");
+
+  function isPlayerGoal(detail?: string | null) {
+    const normalized = (detail ?? "").toLowerCase();
+
+    return (
+      !normalized.includes("own") &&
+      !normalized.includes("missed") &&
+      !normalized.includes("shootout")
+    );
+  }
+
   for (const event of events ?? []) {
     if (
       event.event_type === "goal" &&
-      !((event.detail ?? "").toLowerCase().includes("own")) &&
-      !((event.detail ?? "").toLowerCase().includes("missed"))
+      isPlayerGoal(event.detail)
     ) {
+      addCorrection({
+        goals: 1,
+        player_id: event.player_id,
+        player_name: event.player_name,
+        team_id: event.team_id,
+      });
       addCorrection({
         assists: 1,
         player_id: event.assist_id,
@@ -1451,18 +1475,16 @@ async function reconcileFixturePlayerStatsFromEvents(
     }
   }
 
-  if (corrections.size === 0) {
+  if (corrections.size === 0 && !hasGoalEvents) {
     return;
   }
 
-  const playerIds = [...corrections.values()].map((row) => row.player_id);
   const { data: stats, error: statsError } = await supabase
     .from("match_player_stats")
     .select(
       "assists,goals,match_id,player_id,player_name,red_cards,team_id,yellow_cards",
     )
-    .eq("match_id", matchId)
-    .in("player_id", playerIds);
+    .eq("match_id", matchId);
 
   if (statsError) {
     throw new Error(statsError.message);
@@ -1471,19 +1493,21 @@ async function reconcileFixturePlayerStatsFromEvents(
   for (const stat of stats ?? []) {
     const correction = corrections.get(`${stat.team_id}:${stat.player_id}`);
 
-    if (!correction) {
+    if (!correction && !hasGoalEvents) {
       continue;
     }
 
-    const nextAssists = Math.max(stat.assists ?? 0, correction.assists);
+    const nextAssists = Math.max(stat.assists ?? 0, correction?.assists ?? 0);
+    const nextGoals = hasGoalEvents ? correction?.goals ?? 0 : stat.goals ?? 0;
     const nextYellowCards = Math.max(
       stat.yellow_cards ?? 0,
-      correction.yellow_cards,
+      correction?.yellow_cards ?? 0,
     );
-    const nextRedCards = Math.max(stat.red_cards ?? 0, correction.red_cards);
+    const nextRedCards = Math.max(stat.red_cards ?? 0, correction?.red_cards ?? 0);
 
     if (
       nextAssists === (stat.assists ?? 0) &&
+      nextGoals === (stat.goals ?? 0) &&
       nextYellowCards === (stat.yellow_cards ?? 0) &&
       nextRedCards === (stat.red_cards ?? 0)
     ) {
@@ -1494,6 +1518,7 @@ async function reconcileFixturePlayerStatsFromEvents(
       .from("match_player_stats")
       .update({
         assists: nextAssists,
+        goals: nextGoals,
         red_cards: nextRedCards,
         updated_at: new Date().toISOString(),
         yellow_cards: nextYellowCards,
@@ -1801,6 +1826,18 @@ function determineResultFromNullableScores(
   }
 
   return determineResult(homeScore, awayScore);
+}
+
+function determineFixtureWinner(item: ApiFootballFixture) {
+  if (item.teams.home.winner === true) {
+    return "home";
+  }
+
+  if (item.teams.away.winner === true) {
+    return "away";
+  }
+
+  return determineResultFromNullableScores(item.goals.home, item.goals.away);
 }
 
 function uniqueBy<T>(rows: T[], keyForRow: (row: T) => string) {

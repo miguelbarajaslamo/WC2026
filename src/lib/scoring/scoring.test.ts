@@ -57,7 +57,26 @@ describe("calculateTraditionalScore", () => {
         { ...basePrediction, predictedResult: "home", homeScore: 2, awayScore: 1 },
         null,
       ),
-    ).toEqual({ points: 0, reason: "not_finished" });
+      ).toEqual({ points: 0, reason: "not_finished" });
+  });
+
+  it("can score a knockout advancement winner after a drawn score", () => {
+    expect(
+      calculateTraditionalScore(
+        { ...basePrediction, predictedResult: "away", homeScore: 0, awayScore: 0 },
+        { homeScore: 1, awayScore: 1 },
+        false,
+        "away",
+      ),
+    ).toEqual({ points: 3, reason: "correct_result" });
+    expect(
+      calculateTraditionalScore(
+        { ...basePrediction, predictedResult: "draw", homeScore: 0, awayScore: 0 },
+        { homeScore: 1, awayScore: 1 },
+        false,
+        "away",
+      ).points,
+    ).toBe(0);
   });
 });
 
@@ -92,5 +111,21 @@ describe("calculatePotScores", () => {
 
     expect(result.pointsByPredictionId.a).toBe(0);
     expect(result.pointsByPredictionId.b).toBe(0);
+  });
+
+  it("uses an advancement winner override for pot scoring", () => {
+    const result = calculatePotScores({
+      activePlayerCount: 10,
+      finalResult: "away",
+      finalScore: { homeScore: 1, awayScore: 1 },
+      predictions: [
+        { ...basePrediction, id: "a", predictedResult: "draw", homeScore: 0, awayScore: 0 },
+        { ...basePrediction, id: "b", predictedResult: "away", homeScore: 0, awayScore: 0 },
+      ],
+      scorePrediction: false,
+    });
+
+    expect(result.pointsByPredictionId.a).toBe(0);
+    expect(result.pointsByPredictionId.b).toBe(10);
   });
 });

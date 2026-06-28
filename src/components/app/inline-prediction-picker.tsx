@@ -10,7 +10,7 @@ import { usePicksSave } from "@/components/app/picks-save-context";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
 import { scoreResult } from "@/lib/predictions";
-import { matchUsesScorePrediction } from "@/lib/stages";
+import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type {
   BootstrapData,
@@ -31,10 +31,10 @@ export function InlinePredictionPicker({
   match: Match;
 }) {
   const existing = getUserPrediction(data, match.id);
-  const useScore = matchUsesScorePrediction(
-    data.pool.scorePredictionStages,
-    match.stage,
-  );
+  const knockout = isKnockoutStage(match.stage);
+  const useScore =
+    !knockout &&
+    matchUsesScorePrediction(data.pool.scorePredictionStages, match.stage);
 
   const [homeScore, setHomeScore] = useState(existing?.homeScore ?? 0);
   const [awayScore, setAwayScore] = useState(existing?.awayScore ?? 0);
@@ -60,7 +60,7 @@ export function InlinePredictionPicker({
   const dirty = useScore
     ? `${homeScore}-${awayScore}` !== lastSavedScore
     : result !== lastSavedResult;
-  const canSave = dirty && (useScore || result !== "");
+  const canSave = dirty && (useScore || (result !== "" && !(knockout && result === "draw")));
   const predictedResult: PredictionResult = useScore
     ? scoreResult(homeScore, awayScore)
     : result || "draw";
@@ -165,7 +165,11 @@ export function InlinePredictionPicker({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className={cn("font-black", compact ? "text-sm" : "text-base")}>
-            {compact ? `${home.shortName} vs ${away.shortName}` : "Your prediction"}
+            {compact
+              ? `${home.shortName} vs ${away.shortName}`
+              : knockout
+                ? "Who advances?"
+                : "Your prediction"}
           </h2>
           <p className="mt-1 text-xs font-bold text-stone-500">
             {formatMatchTiming({
@@ -226,27 +230,29 @@ export function InlinePredictionPicker({
             <TeamFormRow team={home} />
             <TeamFormRow team={away} />
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className={cn("mt-3 grid gap-2", knockout ? "grid-cols-2" : "grid-cols-3")}>
             <ResultButton
               disabled={locked}
               label={home.shortName}
               onClick={() => setResult("home")}
               selected={result === "home"}
-              sub="1"
+              sub={knockout ? "Advances" : "1"}
             />
-            <ResultButton
-              disabled={locked}
-              label="Draw"
-              onClick={() => setResult("draw")}
-              selected={result === "draw"}
-              sub="X"
-            />
+            {knockout ? null : (
+              <ResultButton
+                disabled={locked}
+                label="Draw"
+                onClick={() => setResult("draw")}
+                selected={result === "draw"}
+                sub="X"
+              />
+            )}
             <ResultButton
               disabled={locked}
               label={away.shortName}
               onClick={() => setResult("away")}
               selected={result === "away"}
-              sub="2"
+              sub={knockout ? "Advances" : "2"}
             />
           </div>
         </>

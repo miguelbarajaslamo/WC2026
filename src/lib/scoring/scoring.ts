@@ -53,17 +53,32 @@ export function matchFinishedScore(match: Match): FinishedScore | null {
   };
 }
 
+export function matchFinishedResult(match: Match): PredictionResult | null {
+  const finalScore = matchFinishedScore(match);
+
+  if (!finalScore) {
+    return null;
+  }
+
+  if (match.winner === "home" || match.winner === "away") {
+    return match.winner;
+  }
+
+  return determineResult(finalScore);
+}
+
 export function calculateTraditionalScore(
   prediction: Pick<Prediction, "awayScore" | "homeScore" | "predictedResult">,
   finalScore: FinishedScore | null,
   // 1X2 (result-only) matches never award the exact-score bonus.
   scorePrediction = true,
+  finalResultOverride?: PredictionResult | null,
 ): TraditionalScoreBreakdown {
   if (!finalScore) {
     return { points: 0, reason: "not_finished" };
   }
 
-  const finalResult = determineResult(finalScore);
+  const finalResult = finalResultOverride ?? determineResult(finalScore);
 
   if (prediction.predictedResult !== finalResult) {
     return { points: 0, reason: "incorrect" };
@@ -89,11 +104,13 @@ export function calculateTraditionalScore(
 export function calculatePotScores({
   activePlayerCount,
   finalScore,
+  finalResult: finalResultOverride,
   predictions,
   scorePrediction = true,
 }: {
   activePlayerCount: number;
   finalScore: FinishedScore | null;
+  finalResult?: PredictionResult | null;
   predictions: Array<
     Pick<Prediction, "awayScore" | "homeScore" | "id" | "predictedResult">
   >;
@@ -113,7 +130,7 @@ export function calculatePotScores({
     };
   }
 
-  const finalResult = determineResult(finalScore);
+  const finalResult = finalResultOverride ?? determineResult(finalScore);
   const resultWinners = predictions.filter(
     (prediction) => prediction.predictedResult === finalResult,
   );

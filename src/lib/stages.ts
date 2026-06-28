@@ -2,6 +2,8 @@
 // versus result-only (1X2). A pool stores the category keys that are score
 // prediction; everything else is 1X2.
 
+import type { Match } from "@/lib/types";
+
 export const STAGE_CATEGORIES: Array<{ key: string; label: string }> = [
   { key: "group", label: "Group Stage" },
   { key: "r32", label: "Round of 32" },
@@ -22,6 +24,25 @@ export function stageCategory(stage: string): string {
     return "final";
   }
   return "group";
+}
+
+export function isGroupStage(stage: string) {
+  return stageCategory(stage) === "group";
+}
+
+export function isKnockoutStage(stage: string) {
+  return !isGroupStage(stage);
+}
+
+export function groupStageComplete(matches: Match[]) {
+  const groupMatches = matches.filter((match) => isGroupStage(match.stage));
+
+  return (
+    groupMatches.length > 0 &&
+    groupMatches.every((match) =>
+      ["cancelled", "finished", "postponed"].includes(match.status),
+    )
+  );
 }
 
 // True when this match's stage uses full score prediction for the pool.

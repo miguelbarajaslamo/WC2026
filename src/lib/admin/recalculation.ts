@@ -2,6 +2,7 @@ import { calculateBonusScore } from "@/lib/scoring/bonus";
 import {
   calculatePotScores,
   calculateTraditionalScore,
+  matchFinishedResult,
   matchFinishedScore,
 } from "@/lib/scoring/scoring";
 import type {
@@ -51,11 +52,13 @@ export function buildMatchScoreRows({
   scorePrediction?: boolean;
 }): ScoreSnapshotUpsert[] {
   const finalScore = matchFinishedScore(match);
+  const finalResult = matchFinishedResult(match);
 
   if (scoringMode === "pot") {
     const potScores = calculatePotScores({
       activePlayerCount,
       finalScore,
+      finalResult,
       predictions,
       scorePrediction,
     });
@@ -75,7 +78,12 @@ export function buildMatchScoreRows({
   }
 
   return predictions.map((prediction) => {
-    const score = calculateTraditionalScore(prediction, finalScore, scorePrediction);
+    const score = calculateTraditionalScore(
+      prediction,
+      finalScore,
+      scorePrediction,
+      finalResult,
+    );
 
     return {
       match_id: match.id,

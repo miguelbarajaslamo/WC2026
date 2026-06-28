@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { LoadingState } from "@/components/app/data-state";
+import { useBootstrap } from "@/components/app/use-bootstrap";
 import { FinalsView } from "@/components/views/finals-view";
 import { GroupsView } from "@/components/views/groups-view";
 import { cn } from "@/lib/cn";
+import { groupStageComplete } from "@/lib/stages";
 
-// Groups remains the primary tab; Finals is a secondary bracket projection.
 export function GroupsFinalsView() {
-  const [tab, setTab] = useState<"finals" | "groups">("groups");
+  const [selectedTab, setSelectedTab] = useState<"finals" | "groups" | null>(null);
+  const { data, isLoading } = useBootstrap();
+  const defaultFinals = data ? groupStageComplete(data.matches) : false;
+  const tab = selectedTab ?? (defaultFinals ? "finals" : "groups");
+
+  if (isLoading || !data) {
+    return <LoadingState label="Loading groups" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -15,12 +24,12 @@ export function GroupsFinalsView() {
         <TabButton
           active={tab === "groups"}
           label="Groups"
-          onClick={() => setTab("groups")}
+          onClick={() => setSelectedTab("groups")}
         />
         <TabButton
           active={tab === "finals"}
           label="Finals"
-          onClick={() => setTab("finals")}
+          onClick={() => setSelectedTab("finals")}
         />
       </div>
 
