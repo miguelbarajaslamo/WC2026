@@ -630,8 +630,8 @@ async function selectManyWithColumnFallback<T>(
 }
 
 // Supabase caps a single query at 1000 rows, so tables that can exceed that
-// (players, squads, bonus options, in-tournament events/stats) must be paged
-// or they silently truncate — e.g. dropping every top-scorer pick option.
+// (players, squads, picks, score snapshots, events/stats) must be paged or
+// they silently truncate — e.g. dropping newly-created knockout picks.
 async function selectAllPaged<T>(
   buildQuery: (
     from: number,
@@ -784,13 +784,16 @@ export async function buildSupabaseBootstrapData({
             .range(from, to),
       ).then((data) => ({ data, error: null })),
     ),
-    selectMany<PredictionRow>(
+    selectAllPaged<PredictionRow>((from, to) =>
       supabase
         .from("predictions")
         .select(
           "id,pool_id,match_id,user_id,predicted_result,home_score,away_score,locked_at,updated_at",
         )
-        .eq("pool_id", pool.id),
+        .eq("pool_id", pool.id)
+        .order("updated_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
     ),
     selectAllPaged<MatchPlayerStatRow>((from, to) =>
       supabase
@@ -816,12 +819,15 @@ export async function buildSupabaseBootstrapData({
         )
         .eq("pool_id", pool.id),
     ),
-    selectMany<ScoreSnapshotRow>(
+    selectAllPaged<ScoreSnapshotRow>((from, to) =>
       supabase
         .from("score_snapshots")
         .select("user_id,match_id,points,reason")
         .eq("pool_id", pool.id)
-        .eq("scoring_mode", pool.scoringMode),
+        .eq("scoring_mode", pool.scoringMode)
+        .order("match_id", { ascending: true })
+        .order("user_id", { ascending: true })
+        .range(from, to),
     ),
     selectAllPaged<BonusPickOptionRow>((from, to) =>
       supabase
