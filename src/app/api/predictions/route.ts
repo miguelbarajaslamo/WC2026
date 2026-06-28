@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
 import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PredictionResult } from "@/lib/types";
 
@@ -97,7 +98,11 @@ export async function POST(request: Request) {
     awayScore = 0;
   }
 
-  const { data, error } = await supabase
+  // The request is fully authorized above with the user's session. Use the
+  // service-role client for the write so inserts and conflict updates behave
+  // identically and cannot diverge because of RLS/upsert edge cases.
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
     .from("predictions")
     .upsert(
       {
@@ -114,8 +119,11 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: "Could not save prediction" }, { status: 500 });
+  if (error || !data) {
+    return NextResponse.json(
+      { error: error?.message ?? "Could not save prediction" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ prediction: data });
