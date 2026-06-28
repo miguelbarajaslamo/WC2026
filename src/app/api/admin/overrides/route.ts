@@ -32,6 +32,19 @@ type AdminOverridePayload = {
   reason?: string;
 };
 
+type MatchPlayerStatRow = {
+  assists: number | null;
+  clean_sheets: number | null;
+  goals: number | null;
+  player_id: string | null;
+  player_name: string | null;
+  red_cards: number | null;
+  saves: number | null;
+  team_id: string | null;
+  updated_at: string | null;
+  yellow_cards: number | null;
+};
+
 const allowedMatchFields = [
   "away_score",
   "away_team_id",
@@ -541,9 +554,7 @@ async function recalculateBonusScores(
 async function recalculateTournamentStats(
   admin: ReturnType<typeof createSupabaseAdminClient>,
 ) {
-  const { data: stats } = await admin
-    .from("match_player_stats")
-    .select("player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at");
+  const stats = await fetchAllMatchPlayerStats(admin);
   const grouped = new Map<string, {
     assists: number;
     clean_sheets: number;
@@ -562,7 +573,9 @@ async function recalculateTournamentStats(
       return;
     }
 
-    const key = `${stat.team_id}:${stat.player_name}`;
+    const key = stat.player_id
+      ? `id:${stat.player_id}`
+      : `name:${stat.team_id}:${stat.player_name}`;
     const current = grouped.get(key);
 
     if (!current) {
@@ -587,20 +600,58 @@ async function recalculateTournamentStats(
     current.red_cards += stat.red_cards ?? 0;
     current.saves += stat.saves ?? 0;
     current.yellow_cards += stat.yellow_cards ?? 0;
-    current.updated_at = stat.updated_at ?? current.updated_at;
+    if ((stat.updated_at ?? "") >= current.updated_at) {
+      current.player_name = stat.player_name;
+      current.updated_at = stat.updated_at ?? current.updated_at;
+    }
   });
 
   const rows = [...grouped.values()];
 
+  const { error: deleteError } = await admin
+    .from("tournament_player_stat_snapshots")
+    .delete()
+    .neq("team_id", "__never__");
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
   if (rows.length > 0) {
     const { error } = await admin
       .from("tournament_player_stat_snapshots")
-      .upsert(rows, { onConflict: "player_name,team_id" });
+      .upsert(rows, { onConflict: "team_id,player_id" });
 
     if (error) {
       throw new Error(error.message);
     }
   }
+}
+
+async function fetchAllMatchPlayerStats(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+) {
+  const pageSize = 1000;
+  const rows: MatchPlayerStatRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await admin
+      .from("match_player_stats")
+      .select("player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at")
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data ?? []) as MatchPlayerStatRow[]));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
 }
 
 async function recalculateAll({

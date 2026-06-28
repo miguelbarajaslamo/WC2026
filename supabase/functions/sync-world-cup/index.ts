@@ -198,6 +198,19 @@ type PredictionRow = {
   user_id: string;
 };
 
+type MatchPlayerStatRow = {
+  assists: number | null;
+  clean_sheets: number | null;
+  goals: number | null;
+  player_id: string | null;
+  player_name: string | null;
+  red_cards: number | null;
+  saves: number | null;
+  team_id: string | null;
+  updated_at: string | null;
+  yellow_cards: number | null;
+};
+
 const syncLockKey = 2026001;
 
 Deno.serve(async (request) => {
@@ -1346,11 +1359,7 @@ async function upsertFixturePlayerStats(
 async function recalculateTournamentPlayerStats(
   supabase: ReturnType<typeof createClient>,
 ) {
-  const { data: stats } = await supabase
-    .from("match_player_stats")
-    .select(
-      "player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at",
-    );
+  const stats = await fetchAllMatchPlayerStats(supabase);
   const grouped = new Map<string, {
     assists: number;
     clean_sheets: number;
@@ -1407,23 +1416,52 @@ async function recalculateTournamentPlayerStats(
 
   const rows = [...grouped.values()];
 
+  const { error: deleteError } = await supabase
+    .from("tournament_player_stat_snapshots")
+    .delete()
+    .neq("team_id", "__never__");
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
   if (rows.length > 0) {
-    await supabase
+    const { error } = await supabase
       .from("tournament_player_stat_snapshots")
       .upsert(rows, { onConflict: "team_id,player_id" });
 
-    // Remove orphan snapshots (e.g. old name-keyed rows) so totals don't
-    // linger for a player who no longer matches the current id set.
-    const ids = rows
-      .map((row) => row.player_id)
-      .filter((id): id is string => Boolean(id));
-    if (ids.length > 0) {
-      await supabase
-        .from("tournament_player_stat_snapshots")
-        .delete()
-        .not("player_id", "in", `(${ids.map((id) => `"${id}"`).join(",")})`);
+    if (error) {
+      throw new Error(error.message);
     }
   }
+}
+
+async function fetchAllMatchPlayerStats(
+  supabase: ReturnType<typeof createClient>,
+) {
+  const pageSize = 1000;
+  const rows: MatchPlayerStatRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("match_player_stats")
+      .select(
+        "player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at",
+      )
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data ?? []) as MatchPlayerStatRow[]));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
 }
 
 async function recalculateFinishedFixtures(
