@@ -213,7 +213,43 @@ type MatchPlayerStatRow = {
   yellow_cards: number | null;
 };
 
+type QueryResult<T> = PromiseLike<{
+  data: T[] | null;
+  error: { message: string } | null;
+}>;
+
 const syncLockKey = 2026001;
+
+function chunkRows<T>(rows: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function selectAllPaged<T>(
+  buildQuery: (from: number, to: number) => QueryResult<T>,
+) {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...(data ?? []));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
 
 Deno.serve(async (request) => {
   const startedAt = new Date().toISOString();
@@ -1657,10 +1693,15 @@ async function recalculateFinishedFixtures(
     .from("pools")
     .select("id,scoring_mode,score_prediction_stages")
     .returns<PoolRow[]>();
-  const { data: members } = await supabase
-    .from("pool_members")
-    .select("pool_id,user_id")
-    .returns<PoolMemberRow[]>();
+  const members = await selectAllPaged<PoolMemberRow>((from, to) =>
+    supabase
+      .from("pool_members")
+      .select("pool_id,user_id")
+      .order("pool_id", { ascending: true })
+      .order("user_id", { ascending: true })
+      .range(from, to)
+      .returns<PoolMemberRow[]>(),
+  );
 
   for (const match of matches ?? []) {
     if (match.home_score === null || match.away_score === null) {
@@ -1670,19 +1711,23 @@ async function recalculateFinishedFixtures(
     const finalResult = determineResult(match.home_score, match.away_score);
 
     for (const pool of pools ?? []) {
-      const { data: predictions } = await supabase
-        .from("predictions")
-        .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score")
-        .eq("pool_id", pool.id)
-        .eq("match_id", match.id)
-        .returns<PredictionRow[]>();
+      const predictions = await selectAllPaged<PredictionRow>((from, to) =>
+        supabase
+          .from("predictions")
+          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score")
+          .eq("pool_id", pool.id)
+          .eq("match_id", match.id)
+          .order("user_id", { ascending: true })
+          .range(from, to)
+          .returns<PredictionRow[]>(),
+      );
 
-      if (!predictions || predictions.length === 0) {
+      if (predictions.length === 0) {
         continue;
       }
 
       const poolMemberCount =
-        members?.filter((member) => member.pool_id === pool.id).length ?? 0;
+        members.filter((member) => member.pool_id === pool.id).length;
       const resultWinners = predictions.filter(
         (prediction) => prediction.predicted_result === finalResult,
       );
@@ -1724,11 +1769,13 @@ async function recalculateFinishedFixtures(
         };
       });
 
-      await supabase
-        .from("score_snapshots")
-        .upsert(scoreRows, {
-          onConflict: "pool_id,match_id,user_id,scoring_mode",
-        });
+      for (const chunk of chunkRows(scoreRows, 1000)) {
+        await supabase
+          .from("score_snapshots")
+          .upsert(chunk, {
+            onConflict: "pool_id,match_id,user_id,scoring_mode",
+          });
+      }
     }
   }
 }

@@ -31,6 +31,61 @@ type QuietProfileRow = {
   timezone: string | null;
 };
 
+type QueryResult<T> = PromiseLike<{
+  data: T[] | null;
+  error: { message: string } | null;
+}>;
+
+function chunkRows<T>(rows: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function selectAllPaged<T>(
+  buildQuery: (from: number, to: number) => QueryResult<T>,
+) {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...(data ?? []));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+async function selectAllInChunks<T>(
+  values: string[],
+  buildQuery: (
+    chunk: string[],
+    from: number,
+    to: number,
+  ) => QueryResult<T>,
+) {
+  const rows: T[] = [];
+
+  for (const chunk of chunkRows([...new Set(values)], 500)) {
+    rows.push(
+      ...(await selectAllPaged<T>((from, to) => buildQuery(chunk, from, to))),
+    );
+  }
+
+  return rows;
+}
+
 export async function POST(request: Request) {
   const { body, mentionAll, mentions, poolId, vote } =
     (await request.json()) as Payload;
@@ -96,11 +151,15 @@ export async function POST(request: Request) {
   const wantsAll = Boolean(mentionAll) && member.role === "admin";
   let validMentions: string[] = [];
   if (wantsAll) {
-    const { data: allMembers } = await admin
-      .from("pool_members")
-      .select("user_id")
-      .eq("pool_id", poolId);
-    validMentions = (allMembers ?? [])
+    const allMembers = await selectAllPaged<{ user_id: string }>((from, to) =>
+      admin
+        .from("pool_members")
+        .select("user_id")
+        .eq("pool_id", poolId)
+        .order("user_id", { ascending: true })
+        .range(from, to),
+    );
+    validMentions = allMembers
       .map((row) => row.user_id)
       .filter((id) => id !== user.id);
   } else {
@@ -214,25 +273,33 @@ async function notifyMentions(
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
 
-  const [{ data: profiles }, { data: senderProfile }, { data: subscriptions }] =
+  const [profiles, { data: senderProfile }, subscriptions] =
     await Promise.all([
-      admin
-        .from("profiles")
-        .select(
-          "id,display_name,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
-        )
-        .in("id", recipientIds)
-        .returns<QuietProfileRow[]>(),
+      selectAllInChunks<QuietProfileRow>(recipientIds, (chunk, from, to) =>
+        admin
+          .from("profiles")
+          .select(
+            "id,display_name,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
+          )
+          .in("id", chunk)
+          .order("id", { ascending: true })
+          .range(from, to)
+          .returns<QuietProfileRow[]>(),
+      ),
       admin
         .from("profiles")
         .select("display_name")
         .eq("id", senderId)
         .single<Pick<QuietProfileRow, "display_name">>(),
-      admin
-        .from("push_subscriptions")
-        .select("user_id,endpoint,p256dh,auth")
-        .in("user_id", recipientIds)
-        .returns<SubscriptionRow[]>(),
+      selectAllInChunks<SubscriptionRow>(recipientIds, (chunk, from, to) =>
+        admin
+          .from("push_subscriptions")
+          .select("user_id,endpoint,p256dh,auth")
+          .in("user_id", chunk)
+          .order("user_id", { ascending: true })
+          .range(from, to)
+          .returns<SubscriptionRow[]>(),
+      ),
     ]);
 
   const senderName = senderProfile?.display_name ?? "Someone";
@@ -252,7 +319,7 @@ async function notifyMentions(
   const staleEndpoints: string[] = [];
 
   await Promise.all(
-    (profiles ?? []).map(async (profile) => {
+    profiles.map(async (profile) => {
       const deferUntil = nextAllowedTime(
         {
           enabled: profile.quiet_hours_enabled ?? false,
@@ -275,7 +342,7 @@ async function notifyMentions(
         return;
       }
 
-      const userSubscriptions = (subscriptions ?? []).filter(
+      const userSubscriptions = subscriptions.filter(
         (subscription) => subscription.user_id === profile.id,
       );
       const payload = JSON.stringify({ body: preview, title, url: "/chat" });
@@ -300,10 +367,14 @@ async function notifyMentions(
   );
 
   if (deferredJobs.length > 0) {
-    await admin.from("notification_jobs").insert(deferredJobs);
+    for (const chunk of chunkRows(deferredJobs, 1000)) {
+      await admin.from("notification_jobs").insert(chunk);
+    }
   }
 
   if (staleEndpoints.length > 0) {
-    await admin.from("push_subscriptions").delete().in("endpoint", staleEndpoints);
+    for (const chunk of chunkRows(staleEndpoints, 1000)) {
+      await admin.from("push_subscriptions").delete().in("endpoint", chunk);
+    }
   }
 }

@@ -659,6 +659,33 @@ async function selectAllPaged<T>(
   return all;
 }
 
+function chunkRows<T>(rows: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function selectAllInChunks<T>(
+  values: string[],
+  buildQuery: (
+    chunk: string[],
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+) {
+  const all: T[] = [];
+
+  for (const chunk of chunkRows([...new Set(values)], 500)) {
+    all.push(
+      ...(await selectAllPaged<T>((from, to) => buildQuery(chunk, from, to))),
+    );
+  }
+
+  return all;
+}
+
 export async function buildSupabaseBootstrapData({
   supabase,
   userEmail,
@@ -721,15 +748,23 @@ export async function buildSupabaseBootstrapData({
     syncRuns,
     adminOverrides,
   ] = await Promise.all([
-    selectManyWithColumnFallback<PoolMemberRow>(
-      () => supabase
-        .from("pool_members")
-        .select("pool_id,user_id,role,joined_at,paid")
-        .eq("pool_id", pool.id),
-      () => supabase
-        .from("pool_members")
-        .select("pool_id,user_id,role,joined_at")
-        .eq("pool_id", pool.id),
+    selectAllPaged<PoolMemberRow>(async (from, to) =>
+      selectManyWithColumnFallback<PoolMemberRow>(
+        () =>
+          supabase
+            .from("pool_members")
+            .select("pool_id,user_id,role,joined_at,paid")
+            .eq("pool_id", pool.id)
+            .order("joined_at", { ascending: true })
+            .range(from, to),
+        () =>
+          supabase
+            .from("pool_members")
+            .select("pool_id,user_id,role,joined_at")
+            .eq("pool_id", pool.id)
+            .order("joined_at", { ascending: true })
+            .range(from, to),
+      ).then((data) => ({ data, error: null })),
     ),
     selectManyWithColumnFallback<TeamRow>(
       () => supabase
@@ -836,17 +871,23 @@ export async function buildSupabaseBootstrapData({
         .eq("active", true)
         .range(from, to),
     ),
-    selectMany<BonusPickRow>(
+    selectAllPaged<BonusPickRow>((from, to) =>
       supabase
         .from("bonus_picks")
         .select("id,pool_id,user_id,type,slot,option_id,locked_at,updated_at")
-        .eq("pool_id", pool.id),
+        .eq("pool_id", pool.id)
+        .order("user_id", { ascending: true })
+        .order("type", { ascending: true })
+        .range(from, to),
     ),
-    selectMany<BonusScoreSnapshotRow>(
+    selectAllPaged<BonusScoreSnapshotRow>((from, to) =>
       supabase
         .from("bonus_score_snapshots")
         .select("id,pool_id,user_id,type,slot,points,reason")
-        .eq("pool_id", pool.id),
+        .eq("pool_id", pool.id)
+        .order("user_id", { ascending: true })
+        .order("type", { ascending: true })
+        .range(from, to),
     ),
     selectMany<SyncRunRow>(
       supabase
@@ -871,19 +912,29 @@ export async function buildSupabaseBootstrapData({
     role: member.role,
     userId: member.user_id,
   }));
-  const profiles = await selectManyWithColumnFallback<ProfileRow>(
-    () => supabase
-      .from("profiles")
-      .select(
-        "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
-      )
-      .in("id", members.map((member) => member.userId)),
-    () => supabase
-      .from("profiles")
-      .select(
-        "id,display_name,avatar_color,notification_deadlines,notification_live_scores",
-      )
-      .in("id", members.map((member) => member.userId)),
+  const profiles = await selectAllInChunks<ProfileRow>(
+    members.map((member) => member.userId),
+    async (chunk, from, to) =>
+      selectManyWithColumnFallback<ProfileRow>(
+        () =>
+          supabase
+            .from("profiles")
+            .select(
+              "id,display_name,avatar_color,avatar_url,notification_deadlines,notification_live_scores,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
+            )
+            .in("id", chunk)
+            .order("id", { ascending: true })
+            .range(from, to),
+        () =>
+          supabase
+            .from("profiles")
+            .select(
+              "id,display_name,avatar_color,notification_deadlines,notification_live_scores",
+            )
+            .in("id", chunk)
+            .order("id", { ascending: true })
+            .range(from, to),
+      ).then((data) => ({ data, error: null })),
   );
   const mappedMatches = matches.map(mapMatch);
   const mappedProfiles = profiles.map(mapProfile);

@@ -45,6 +45,11 @@ type MatchPlayerStatRow = {
   yellow_cards: number | null;
 };
 
+type QueryResult<T> = PromiseLike<{
+  data: T[] | null;
+  error: { message: string } | null;
+}>;
+
 const allowedMatchFields = [
   "away_score",
   "away_team_id",
@@ -66,6 +71,29 @@ function numberValue(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+async function selectAllPaged<T>(
+  buildQuery: (from: number, to: number) => QueryResult<T>,
+) {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...(data ?? []));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
 }
 
 function mapPrediction(row: {
@@ -464,7 +492,7 @@ async function recalculateMatchScores({
     throw new Error("Recalculation requires matchId");
   }
 
-  const [{ data: pool }, { data: match }, { data: predictions }, { data: members }] =
+  const [{ data: pool }, { data: match }, predictions, members] =
     await Promise.all([
       admin
         .from("pools")
@@ -478,12 +506,32 @@ async function recalculateMatchScores({
         )
         .eq("id", matchId)
         .single(),
-      admin
-        .from("predictions")
-        .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score,updated_at")
-        .eq("pool_id", poolId)
-        .eq("match_id", matchId),
-      admin.from("pool_members").select("user_id").eq("pool_id", poolId),
+      selectAllPaged<{
+        away_score: number;
+        home_score: number;
+        id: string;
+        match_id: string;
+        pool_id: string;
+        predicted_result: Prediction["predictedResult"];
+        updated_at?: string;
+        user_id: string;
+      }>((from, to) =>
+        admin
+          .from("predictions")
+          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score,updated_at")
+          .eq("pool_id", poolId)
+          .eq("match_id", matchId)
+          .order("user_id", { ascending: true })
+          .range(from, to),
+      ),
+      selectAllPaged<{ user_id: string }>((from, to) =>
+        admin
+          .from("pool_members")
+          .select("user_id")
+          .eq("pool_id", poolId)
+          .order("user_id", { ascending: true })
+          .range(from, to),
+      ),
     ]);
 
   if (!pool || !match) {
@@ -491,10 +539,10 @@ async function recalculateMatchScores({
   }
 
   const rows = buildMatchScoreRows({
-    activePlayerCount: members?.length ?? 0,
+    activePlayerCount: members.length,
     match: mapMatch(match),
     poolId,
-    predictions: (predictions ?? []).map(mapPrediction),
+    predictions: predictions.map(mapPrediction),
     scoringMode: pool.scoring_mode as ScoringMode,
     scorePrediction: matchUsesScorePrediction(
       (pool as { score_prediction_stages?: string[] }).score_prediction_stages,
@@ -517,13 +565,29 @@ async function recalculateBonusScores(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   poolId: string,
 ) {
-  const [{ data: winners }, { data: picks }] = await Promise.all([
+  const [{ data: winners }, picks] = await Promise.all([
     admin.from("bonus_winners").select("type,slot,option_id").eq("pool_id", poolId),
-    admin.from("bonus_picks").select("id,pool_id,user_id,type,slot,option_id,updated_at").eq("pool_id", poolId),
+    selectAllPaged<{
+      id: string;
+      option_id: string;
+      pool_id: string;
+      slot: number | null;
+      type: BonusPickType;
+      updated_at: string | null;
+      user_id: string;
+    }>((from, to) =>
+      admin
+        .from("bonus_picks")
+        .select("id,pool_id,user_id,type,slot,option_id,updated_at")
+        .eq("pool_id", poolId)
+        .order("user_id", { ascending: true })
+        .order("type", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   const rows = buildBonusScoreRows({
-    picks: (picks ?? []).map((pick) => ({
+    picks: picks.map((pick) => ({
       id: pick.id,
       optionId: pick.option_id,
       poolId: pick.pool_id,
@@ -631,27 +695,14 @@ async function recalculateTournamentStats(
 async function fetchAllMatchPlayerStats(
   admin: ReturnType<typeof createSupabaseAdminClient>,
 ) {
-  const pageSize = 1000;
-  const rows: MatchPlayerStatRow[] = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await admin
+  return selectAllPaged<MatchPlayerStatRow>((from, to) =>
+    admin
       .from("match_player_stats")
       .select("player_id,player_name,team_id,goals,assists,yellow_cards,red_cards,saves,clean_sheets,updated_at")
-      .range(from, from + pageSize - 1);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    rows.push(...((data ?? []) as MatchPlayerStatRow[]));
-
-    if ((data ?? []).length < pageSize) {
-      break;
-    }
-  }
-
-  return rows;
+      .order("match_id", { ascending: true })
+      .order("team_id", { ascending: true })
+      .range(from, to),
+  );
 }
 
 async function recalculateAll({

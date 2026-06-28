@@ -78,6 +78,11 @@ type QuietSettings = {
   timeZone: string | null;
 };
 
+type QueryResult<T> = PromiseLike<{
+  data: T[] | null;
+  error: { message: string } | null;
+}>;
+
 // How far before lock we'd ideally remind, and how far ahead we look so overnight
 // reminders can be pre-scheduled for the previous evening's window close.
 const LEAD_MS = 2 * 60 * 60 * 1000;
@@ -87,6 +92,56 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Detection windows for the event-based notifications.
 const LOCK_SOON_MS = 15 * 60 * 1000;
 const RECENT_FINISH_MS = 4 * 60 * 60 * 1000;
+
+function chunkRows<T>(rows: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function selectAllPaged<T>(
+  buildQuery: (from: number, to: number) => QueryResult<T>,
+) {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...(data ?? []));
+
+    if ((data ?? []).length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+async function selectAllInChunks<T>(
+  values: string[],
+  buildQuery: (
+    chunk: string[],
+    from: number,
+    to: number,
+  ) => QueryResult<T>,
+) {
+  const rows: T[] = [];
+
+  for (const chunk of chunkRows([...new Set(values)], 500)) {
+    rows.push(
+      ...(await selectAllPaged<T>((from, to) => buildQuery(chunk, from, to))),
+    );
+  }
+
+  return rows;
+}
 
 // Summary payload when several of the same type are due for one user at once.
 function summaryPayload(type: string, count: number) {
@@ -292,7 +347,7 @@ Deno.serve(async (request) => {
   const lockSoonUntil = new Date(now.getTime() + LOCK_SOON_MS);
   const recentFinishSince = new Date(now.getTime() - RECENT_FINISH_MS);
 
-  const [deadlineRes, lockedRes, finishedRes, followsRes] = await Promise.all([
+  const [deadlineRes, lockedRes, finishedRes, follows] = await Promise.all([
     // Upcoming locks (deadline reminders) — up to 48h out so quiet hours can defer.
     supabase
       .from("matches")
@@ -320,13 +375,19 @@ Deno.serve(async (request) => {
       .not("away_score", "is", null)
       .returns<MatchRow[]>(),
     // Match follows (kickoff/goals/cards/half-time/full-time subscribers).
-    supabase.from("match_follows").select("user_id,match_id").returns<MatchFollowRow[]>(),
+    selectAllPaged<MatchFollowRow>((from, to) =>
+      supabase
+        .from("match_follows")
+        .select("user_id,match_id")
+        .order("user_id", { ascending: true })
+        .range(from, to)
+        .returns<MatchFollowRow[]>(),
+    ),
   ]);
 
   const deadlineMatches = deadlineRes.data ?? [];
   const lockingSoonMatches = lockedRes.data ?? [];
   const finishedMatches = finishedRes.data ?? [];
-  const follows = followsRes.data ?? [];
 
   // Followed matches that are in play (or just finished) drive live alerts.
   const followedMatchIds = [...new Set(follows.map((follow) => follow.match_id))];
@@ -375,31 +436,40 @@ Deno.serve(async (request) => {
   ];
   const deadlineMatchIds = deadlineMatches.map((match) => match.id);
 
-  const { data: members } = await supabase
-    .from("pool_members")
-    .select("pool_id,user_id")
-    .returns<PoolMemberRow[]>();
-  const memberUserIds = [...new Set((members ?? []).map((member) => member.user_id))];
+  const members = await selectAllPaged<PoolMemberRow>((from, to) =>
+    supabase
+      .from("pool_members")
+      .select("pool_id,user_id")
+      .order("pool_id", { ascending: true })
+      .order("user_id", { ascending: true })
+      .range(from, to)
+      .returns<PoolMemberRow[]>(),
+  );
+  const memberUserIds = [...new Set(members.map((member) => member.user_id))];
 
-  const { data: profiles } =
+  const profiles =
     memberUserIds.length > 0
-      ? await supabase
-          .from("profiles")
-          .select(
-            "id,notification_deadlines,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
-          )
-          .in("id", memberUserIds)
-          .returns<ProfileRow[]>()
-      : { data: [] };
+      ? await selectAllInChunks<ProfileRow>(memberUserIds, (chunk, from, to) =>
+          supabase
+            .from("profiles")
+            .select(
+              "id,notification_deadlines,notification_match_locks,notification_full_time,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone",
+            )
+            .in("id", chunk)
+            .order("id", { ascending: true })
+            .range(from, to)
+            .returns<ProfileRow[]>(),
+        )
+      : [];
 
   const usersWith = (key: keyof ProfileRow) =>
-    new Set((profiles ?? []).filter((profile) => profile[key]).map((profile) => profile.id));
+    new Set(profiles.filter((profile) => profile[key]).map((profile) => profile.id));
   const deadlineEnabledUserIds = usersWith("notification_deadlines");
   const lockUserIds = usersWith("notification_match_locks");
   const fullTimeUserIds = usersWith("notification_full_time");
 
   const quietByUser = new Map<string, QuietSettings>();
-  for (const profile of profiles ?? []) {
+  for (const profile of profiles) {
     quietByUser.set(profile.id, {
       enabled: profile.quiet_hours_enabled ?? false,
       end: profile.quiet_hours_end ?? 23,
@@ -427,16 +497,21 @@ Deno.serve(async (request) => {
   const scoreOf = (match: MatchRow) =>
     `${nameOf(match.home_team_id)} ${match.home_score ?? 0}–${match.away_score ?? 0} ${nameOf(match.away_team_id)}`;
 
-  const { data: predictions } =
+  const predictions =
     deadlineMatchIds.length > 0
-      ? await supabase
-          .from("predictions")
-          .select("pool_id,user_id,match_id")
-          .in("match_id", deadlineMatchIds)
-          .returns<PredictionRow[]>()
-      : { data: [] };
+      ? await selectAllInChunks<PredictionRow>(deadlineMatchIds, (chunk, from, to) =>
+          supabase
+            .from("predictions")
+            .select("pool_id,user_id,match_id")
+            .in("match_id", chunk)
+            .order("pool_id", { ascending: true })
+            .order("user_id", { ascending: true })
+            .range(from, to)
+            .returns<PredictionRow[]>(),
+        )
+      : [];
   const existingPickKeys = new Set(
-    (predictions ?? []).map(
+    predictions.map(
       (prediction) =>
         `${prediction.pool_id}:${prediction.user_id}:${prediction.match_id}`,
     ),
@@ -452,7 +527,7 @@ Deno.serve(async (request) => {
   const jobs: JobRow[] = [];
 
   // 1) Missing-pick deadline reminders (per pool membership, quiet-hours aware).
-  for (const member of members ?? []) {
+  for (const member of members) {
     if (!deadlineEnabledUserIds.has(member.user_id)) {
       continue;
     }
@@ -593,50 +668,75 @@ Deno.serve(async (request) => {
   }
 
   if (jobs.length > 0) {
-    await supabase
-      .from("notification_jobs")
-      .upsert(jobs, { onConflict: "user_id,match_id,notification_type" });
+    for (const chunk of chunkRows(jobs, 1000)) {
+      await supabase
+        .from("notification_jobs")
+        .upsert(chunk, { onConflict: "user_id,match_id,notification_type" });
+    }
   }
 
-  const { data: dueJobs } = await supabase
-    .from("notification_jobs")
-    .select("id,user_id,match_id,notification_type,title,body,url")
-    .is("sent_at", null)
-    .lte("scheduled_for", now.toISOString());
+  const dueJobs = await selectAllPaged<{
+    body: string;
+    id: string;
+    match_id: string | null;
+    notification_type: string;
+    title: string;
+    url: string;
+    user_id: string;
+  }>((from, to) =>
+    supabase
+      .from("notification_jobs")
+      .select("id,user_id,match_id,notification_type,title,body,url")
+      .is("sent_at", null)
+      .lte("scheduled_for", now.toISOString())
+      .order("scheduled_for", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
   // Deadline reminders only: a pick may have been saved after the job was
   // scheduled (jobs can be created up to 48h ahead), so drop those.
   const deadlineDueMatchIds = [
     ...new Set(
-      (dueJobs ?? [])
+      dueJobs
         .filter((job) => job.notification_type === "missing_pick_deadline")
         .map((job) => job.match_id)
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  const { data: duePredictions } =
+  const duePredictions =
     deadlineDueMatchIds.length > 0
-      ? await supabase
-          .from("predictions")
-          .select("user_id,match_id")
-          .in("match_id", deadlineDueMatchIds)
-          .returns<Pick<PredictionRow, "match_id" | "user_id">[]>()
-      : { data: [] };
+      ? await selectAllInChunks<Pick<PredictionRow, "match_id" | "user_id">>(
+          deadlineDueMatchIds,
+          (chunk, from, to) =>
+            supabase
+              .from("predictions")
+              .select("user_id,match_id")
+              .in("match_id", chunk)
+              .order("user_id", { ascending: true })
+              .range(from, to)
+              .returns<Pick<PredictionRow, "match_id" | "user_id">[]>(),
+        )
+      : [];
   const pickedKeys = new Set(
-    (duePredictions ?? []).map(
+    duePredictions.map(
       (prediction) => `${prediction.user_id}:${prediction.match_id}`,
     ),
   );
 
-  const userIds = [...new Set((dueJobs ?? []).map((job) => job.user_id))];
-  const { data: subscriptions } =
+  const userIds = [...new Set(dueJobs.map((job) => job.user_id))];
+  const subscriptions =
     userIds.length > 0
-      ? await supabase
-          .from("push_subscriptions")
-          .select("id,user_id,endpoint,p256dh,auth")
-          .in("user_id", userIds)
-          .returns<PushSubscriptionRow[]>()
-      : { data: [] };
+      ? await selectAllInChunks<PushSubscriptionRow>(userIds, (chunk, from, to) =>
+          supabase
+            .from("push_subscriptions")
+            .select("id,user_id,endpoint,p256dh,auth")
+            .in("user_id", chunk)
+            .order("user_id", { ascending: true })
+            .range(from, to)
+            .returns<PushSubscriptionRow[]>(),
+        )
+      : [];
 
   // Drop already-picked deadline jobs; group the rest by user + type so several
   // of the same kind due at once become one coalesced notification (but a pick
@@ -644,9 +744,9 @@ Deno.serve(async (request) => {
   const staleJobIds: string[] = [];
   const groups = new Map<
     string,
-    { jobs: NonNullable<typeof dueJobs>; type: string; userId: string }
+    { jobs: typeof dueJobs; type: string; userId: string }
   >();
-  for (const job of dueJobs ?? []) {
+  for (const job of dueJobs) {
     if (
       job.notification_type === "missing_pick_deadline" &&
       job.match_id &&
@@ -666,13 +766,15 @@ Deno.serve(async (request) => {
   }
 
   if (staleJobIds.length > 0) {
-    await supabase.from("notification_jobs").delete().in("id", staleJobIds);
+    for (const chunk of chunkRows(staleJobIds, 1000)) {
+      await supabase.from("notification_jobs").delete().in("id", chunk);
+    }
   }
 
   let sent = 0;
   for (const group of groups.values()) {
     const jobIds = group.jobs.map((job) => job.id);
-    const userSubscriptions = (subscriptions ?? []).filter(
+    const userSubscriptions = subscriptions.filter(
       (subscription) => subscription.user_id === group.userId,
     );
 
