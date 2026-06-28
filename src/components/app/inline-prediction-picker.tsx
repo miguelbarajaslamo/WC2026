@@ -32,23 +32,26 @@ export function InlinePredictionPicker({
 }) {
   const existing = getUserPrediction(data, match.id);
   const knockout = isKnockoutStage(match.stage);
+  const validExisting =
+    knockout && existing?.predictedResult === "draw" ? undefined : existing;
   const useScore =
     !knockout &&
     matchUsesScorePrediction(data.pool.scorePredictionStages, match.stage);
 
-  const [homeScore, setHomeScore] = useState(existing?.homeScore ?? 0);
-  const [awayScore, setAwayScore] = useState(existing?.awayScore ?? 0);
+  const [homeScore, setHomeScore] = useState(validExisting?.homeScore ?? 0);
+  const [awayScore, setAwayScore] = useState(validExisting?.awayScore ?? 0);
   const [result, setResult] = useState<PredictionResult | "">(
-    existing?.predictedResult ?? "",
+    validExisting?.predictedResult ?? "",
   );
   const [lastSavedScore, setLastSavedScore] = useState(
-    existing ? `${existing.homeScore}-${existing.awayScore}` : "",
+    validExisting ? `${validExisting.homeScore}-${validExisting.awayScore}` : "",
   );
   const [lastSavedResult, setLastSavedResult] = useState<PredictionResult | "">(
-    existing?.predictedResult ?? "",
+    validExisting?.predictedResult ?? "",
   );
-  const [hasSaved, setHasSaved] = useState(existing != null);
+  const [hasSaved, setHasSaved] = useState(validExisting != null);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
   const picksSave = usePicksSave();
@@ -72,6 +75,7 @@ export function InlinePredictionPicker({
 
     setSaving(true);
     setSaveFailed(false);
+    setSaveError(null);
     const previousData = queryClient.getQueryData<BootstrapData>(bootstrapQueryKey);
 
     const optimisticPrediction: Prediction = {
@@ -116,10 +120,14 @@ export function InlinePredictionPicker({
       });
 
       if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
         if (previousData) {
           queryClient.setQueryData(bootstrapQueryKey, previousData);
         }
         setSaveFailed(true);
+        setSaveError(body?.error ?? "Could not save prediction");
         return;
       }
 
@@ -132,6 +140,7 @@ export function InlinePredictionPicker({
         queryClient.setQueryData(bootstrapQueryKey, previousData);
       }
       setSaveFailed(true);
+      setSaveError("Could not reach the server");
     } finally {
       setSaving(false);
     }
@@ -257,6 +266,12 @@ export function InlinePredictionPicker({
           </div>
         </>
       )}
+
+      {saveError ? (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+          {saveError}
+        </p>
+      ) : null}
 
       <button
         className="mt-3 h-11 w-full rounded-md bg-stone-950 text-xs font-black uppercase tracking-wide text-white disabled:bg-stone-300 disabled:text-stone-500"
