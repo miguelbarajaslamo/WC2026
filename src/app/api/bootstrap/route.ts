@@ -8,6 +8,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const noStoreHeaders = {
+  "Cache-Control": "no-store, max-age=0",
+};
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -16,10 +20,15 @@ export async function GET() {
 
   if (!user) {
     if (process.env.NODE_ENV !== "production") {
-      return NextResponse.json(buildMockBootstrapData());
+      return NextResponse.json(buildMockBootstrapData(), {
+        headers: noStoreHeaders,
+      });
     }
 
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Not authenticated" },
+      { headers: noStoreHeaders, status: 401 },
+    );
   }
 
   try {
@@ -29,6 +38,7 @@ export async function GET() {
         userEmail: user.email,
         userId: user.id,
       }),
+      { headers: noStoreHeaders },
     );
   } catch (error) {
     if (!(error instanceof BootstrapAccessError)) {
@@ -44,7 +54,10 @@ export async function GET() {
         code:
           error instanceof BootstrapAccessError ? error.code : undefined,
       },
-      { status: error instanceof BootstrapAccessError ? error.status : 500 },
+      {
+        headers: noStoreHeaders,
+        status: error instanceof BootstrapAccessError ? error.status : 500,
+      },
     );
   }
 }

@@ -16,7 +16,11 @@ export class BootstrapError extends Error {
 
 export async function fetchBootstrapData(): Promise<BootstrapData> {
   const response = await fetch("/api/bootstrap", {
+    cache: "no-store",
     credentials: "include",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
   });
 
   // Session expired while the app was open: send the user back to login
