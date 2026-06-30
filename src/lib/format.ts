@@ -27,6 +27,12 @@ export function formatLockTime(value: string) {
 }
 
 export function formatMinute(match: Match) {
+  const providerStatusCode = match.providerStatusCode.toUpperCase();
+
+  if (providerStatusCode === "P" || providerStatusCode === "PEN") {
+    return "PEN";
+  }
+
   if (match.status === "halftime") {
     return "HT";
   }

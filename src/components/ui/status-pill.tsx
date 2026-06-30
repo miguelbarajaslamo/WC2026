@@ -10,7 +10,26 @@ const statusCopy: Record<MatchStatus, string> = {
   scheduled: "Upcoming",
 };
 
-export function StatusPill({ status }: { status: MatchStatus }) {
+export function statusPillLabel(
+  status: MatchStatus,
+  providerStatusCode?: string,
+) {
+  const code = providerStatusCode?.toUpperCase();
+
+  if (code === "P" || code === "PEN") {
+    return "PEN";
+  }
+
+  return statusCopy[status];
+}
+
+export function StatusPill({
+  providerStatusCode,
+  status,
+}: {
+  providerStatusCode?: string;
+  status: MatchStatus;
+}) {
   return (
     <span
       className={cn(
@@ -23,7 +42,7 @@ export function StatusPill({ status }: { status: MatchStatus }) {
         status === "cancelled" && "bg-stone-200 text-stone-700",
       )}
     >
-      {statusCopy[status]}
+      {statusPillLabel(status, providerStatusCode)}
     </span>
   );
 }

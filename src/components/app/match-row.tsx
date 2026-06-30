@@ -94,7 +94,10 @@ export function MatchRow({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <StatusPill status={match.status} />
+          <StatusPill
+            providerStatusCode={match.providerStatusCode}
+            status={match.status}
+          />
           <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
         </div>
       </div>

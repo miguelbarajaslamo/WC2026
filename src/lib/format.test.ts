@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreText, teamScoreText } from "@/lib/format";
+import { formatMinute, scoreText, teamScoreText } from "@/lib/format";
 import type { Match } from "@/lib/types";
 
 const baseMatch = {
@@ -39,5 +39,20 @@ describe("score formatting", () => {
         providerStatusCode: "FT",
       } as Match),
     ).toBe("2-0");
+  });
+
+  it("shows penalty shootout phase instead of elapsed minutes", () => {
+    expect(
+      formatMinute({
+        ...baseMatch,
+        awayPenaltyScore: 1,
+        awayScore: 1,
+        elapsedMinutes: 120,
+        homePenaltyScore: 2,
+        homeScore: 1,
+        providerStatusCode: "P",
+        status: "live",
+      } as Match),
+    ).toBe("PEN");
   });
 });

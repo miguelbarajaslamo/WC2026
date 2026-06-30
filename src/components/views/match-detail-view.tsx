@@ -140,7 +140,10 @@ export function MatchDetailView({
 
       <section className="rounded-lg bg-[#022c22] p-4 text-white">
         <div className="mb-4 flex items-center justify-between">
-          <StatusPill status={match.status} />
+          <StatusPill
+            providerStatusCode={match.providerStatusCode}
+            status={match.status}
+          />
           <div className="flex items-center gap-2.5">
             <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
             {match.status !== "finished" && data.authMode !== "demo" ? (
