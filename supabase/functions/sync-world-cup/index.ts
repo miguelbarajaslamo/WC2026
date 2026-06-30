@@ -200,6 +200,8 @@ type PredictionRow = {
   user_id: string;
 };
 
+type MatchResultWinner = "home" | "draw" | "away" | null;
+
 type MatchPlayerStatRow = {
   assists: number | null;
   clean_sheets: number | null;
@@ -1686,7 +1688,7 @@ async function recalculateFinishedFixtures(
 
   const { data: matches } = await supabase
     .from("matches")
-    .select("id,home_score,away_score,status,stage")
+    .select("id,home_score,away_score,status,stage,winner")
     .in("id", matchIds)
     .eq("status", "finished");
   const { data: pools } = await supabase
@@ -1708,7 +1710,11 @@ async function recalculateFinishedFixtures(
       continue;
     }
 
-    const finalResult = determineResult(match.home_score, match.away_score);
+    const matchWinner = (match as { winner?: MatchResultWinner }).winner;
+    const finalResult =
+      matchWinner === "home" || matchWinner === "away"
+        ? matchWinner
+        : determineResult(match.home_score, match.away_score);
 
     for (const pool of pools ?? []) {
       const predictions = await selectAllPaged<PredictionRow>((from, to) =>

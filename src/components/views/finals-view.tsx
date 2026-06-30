@@ -37,7 +37,7 @@ export function FinalsView() {
         </p>
         <h2 className="mt-1 text-2xl font-black">Finals tree</h2>
         <p className="mt-2 text-sm font-bold text-white/70">
-          Projected from current standings until knockout teams are confirmed.
+          Winners advance automatically as knockout matches finish.
         </p>
       </div>
 
@@ -114,11 +114,20 @@ function MatchCard({
       style={{ gridRow: `${start} / span ${rowSpan}` }}
     >
       <div className="border-b border-black/5 bg-stone-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-stone-400">
-        M{match.matchNo}
+        <div className="flex items-center justify-between gap-2">
+          <span>M{match.matchNo}</span>
+          <span className="font-mono text-stone-500">
+            {match.score
+              ? `${match.score}${match.providerStatusCode === "PEN" ? " PEN" : ""}`
+              : match.status === "live"
+                ? "LIVE"
+                : ""}
+          </span>
+        </div>
       </div>
-      <SlotRow slot={match.home} />
+      <SlotRow advanced={match.winner === "home"} slot={match.home} />
       <div className="border-t border-black/5" />
-      <SlotRow slot={match.away} />
+      <SlotRow advanced={match.winner === "away"} slot={match.away} />
     </div>
   );
 }
@@ -168,9 +177,20 @@ function ConnectorLine({
   );
 }
 
-function SlotRow({ slot }: { slot: ResolvedSlot }) {
+function SlotRow({
+  advanced,
+  slot,
+}: {
+  advanced?: boolean;
+  slot: ResolvedSlot;
+}) {
   return (
-    <div className="flex min-h-9 items-center gap-1.5 px-2 py-2">
+    <div
+      className={cn(
+        "flex min-h-9 items-center gap-1.5 px-2 py-2",
+        advanced && "bg-emerald-50",
+      )}
+    >
       {slot.kind === "team" && slot.iso2 ? (
         <Flag code={slot.iso2} label={slot.label} size="sm" />
       ) : (
@@ -180,10 +200,16 @@ function SlotRow({ slot }: { slot: ResolvedSlot }) {
         className={cn(
           "min-w-0 truncate text-xs",
           slot.kind === "team" ? "font-black" : "font-bold text-stone-400",
+          advanced && "text-emerald-950",
         )}
       >
         {slot.label}
       </span>
+      {advanced ? (
+        <span className="ml-auto rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
+          Adv
+        </span>
+      ) : null}
     </div>
   );
 }

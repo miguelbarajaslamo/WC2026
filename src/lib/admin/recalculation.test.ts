@@ -75,6 +75,33 @@ describe("admin recalculation helpers", () => {
     ]);
   });
 
+  it("uses advancement winner when a knockout score is tied", () => {
+    const rows = buildMatchScoreRows({
+      activePlayerCount: 3,
+      match: {
+        ...finishedMatch,
+        awayScore: 1,
+        homeScore: 1,
+        stage: "Round of 32",
+        winner: "away",
+      },
+      poolId: "pool",
+      predictions: [
+        prediction("home", 0, 0, "home"),
+        prediction("away", 0, 0, "away"),
+        prediction("draw", 0, 0, "draw"),
+      ],
+      scorePrediction: false,
+      scoringMode: "traditional",
+    });
+
+    expect(rows).toMatchObject([
+      { points: 0, reason: "incorrect", user_id: "home" },
+      { points: 3, reason: "correct_result", user_id: "away" },
+      { points: 0, reason: "incorrect", user_id: "draw" },
+    ]);
+  });
+
   it("builds bonus score rows for tied winning options", () => {
     const rows = buildBonusScoreRows({
       picks: [

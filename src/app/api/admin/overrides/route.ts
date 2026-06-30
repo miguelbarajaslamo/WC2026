@@ -63,6 +63,7 @@ const allowedMatchFields = [
   "stage",
   "status",
   "venue",
+  "winner",
 ] as const;
 
 function numberValue(value: unknown) {
@@ -317,8 +318,10 @@ async function applyMatchOverride({
 
   const homeScore = numberValue(update.home_score);
   const awayScore = numberValue(update.away_score);
+  const explicitWinner =
+    update.winner === "home" || update.winner === "away" || update.winner === "draw";
 
-  if (homeScore !== undefined && awayScore !== undefined) {
+  if (!explicitWinner && homeScore !== undefined && awayScore !== undefined) {
     update.winner = determineResult({ awayScore, homeScore });
   }
 

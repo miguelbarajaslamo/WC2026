@@ -3,7 +3,8 @@ import {
   allocatedThirdPlaceGroup,
   type ThirdPlaceSlot,
 } from "@/lib/third-place-allocation";
-import type { BootstrapData, StandingRow, Team } from "@/lib/types";
+import { determineResult, matchFinishedResult } from "@/lib/scoring/scoring";
+import type { BootstrapData, Match, PredictionResult, StandingRow, Team } from "@/lib/types";
 
 // Official 2026 World Cup knockout structure (matches 73–104). Source: FIFA
 // bracket as published (en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage).
@@ -90,7 +91,15 @@ export type ResolvedSlot = {
 };
 
 export type BracketRoundView = {
-  matches: Array<{ away: ResolvedSlot; home: ResolvedSlot; matchNo: number }>;
+  matches: Array<{
+    away: ResolvedSlot;
+    home: ResolvedSlot;
+    matchNo: number;
+    providerStatusCode?: string;
+    score?: string;
+    status?: Match["status"];
+    winner?: Exclude<PredictionResult, "draw">;
+  }>;
   round: BracketRound;
   title: string;
 };
@@ -133,11 +142,87 @@ function rankThirdPlaceGroups(standings: Record<string, StandingRow[]>) {
     .map((entry) => entry.group);
 }
 
+function matchWinner(match: Match | undefined): Exclude<PredictionResult, "draw"> | null {
+  if (!match) {
+    return null;
+  }
+
+  const finishedResult = matchFinishedResult(match);
+  if (finishedResult === "home" || finishedResult === "away") {
+    return finishedResult;
+  }
+
+  if (
+    match.status !== "finished" &&
+    match.homeScore !== undefined &&
+    match.awayScore !== undefined
+  ) {
+    const liveResult = determineResult({
+      awayScore: match.awayScore,
+      homeScore: match.homeScore,
+    });
+    return liveResult === "home" || liveResult === "away" ? liveResult : null;
+  }
+
+  return null;
+}
+
+function stageStart(stage: string): number | null {
+  const value = stage.toLowerCase();
+
+  if (value.includes("round of 32") || value.includes("1/16")) {
+    return 73;
+  }
+  if (value.includes("round of 16") || value.includes("1/8")) {
+    return 89;
+  }
+  if (value.includes("quarter") || value.includes("1/4")) {
+    return 97;
+  }
+  if (value.includes("semi") || value.includes("1/2")) {
+    return 101;
+  }
+  if (value === "final" || value.includes("final")) {
+    return 104;
+  }
+
+  return null;
+}
+
+function bracketMatchesByNumber(matches: Match[]) {
+  const grouped = new Map<number, Match[]>();
+
+  for (const match of matches) {
+    const start = stageStart(match.stage);
+    if (!start) {
+      continue;
+    }
+    const list = grouped.get(start) ?? [];
+    list.push(match);
+    grouped.set(start, list);
+  }
+
+  const byNumber = new Map<number, Match>();
+  for (const [start, rows] of grouped.entries()) {
+    [...rows]
+      .sort(
+        (left, right) =>
+          new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
+      )
+      .forEach((match, index) => {
+        byNumber.set(start + index, match);
+      });
+  }
+
+  return byNumber;
+}
+
 // Project the bracket against current live standings. Winners/runners-up
 // resolve as soon as teams are present in a group table; third-place slots
 // resolve once we can rank eight projected third-place teams.
 export function projectBracket(data: BootstrapData): BracketRoundView[] {
   const teamById = new Map<string, Team>(data.teams.map((team) => [team.id, team]));
+  const matchesByNumber = bracketMatchesByNumber(data.matches);
   const sortedByGroup = new Map<string, StandingRow[]>();
   const projectedStandings = sortedLiveStandings(data);
   for (const [group, rows] of Object.entries(projectedStandings)) {
@@ -149,6 +234,14 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
   const teamSlot = (group: string, index: number, fallback: string): ResolvedSlot => {
     const row = sortedByGroup.get(`Group ${group}`)?.[index];
     const team = row ? teamById.get(row.teamId) : undefined;
+    if (!team) {
+      return { kind: "placeholder", label: fallback };
+    }
+    return { iso2: team.iso2, kind: "team", label: team.shortName };
+  };
+
+  const actualTeamSlot = (teamId: string | undefined, fallback: string): ResolvedSlot => {
+    const team = teamId ? teamById.get(teamId) : undefined;
     if (!team) {
       return { kind: "placeholder", label: fallback };
     }
@@ -172,15 +265,40 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
       }
       return { kind: "placeholder", label: `3rd ${slot.groups.join("/")}` };
     }
+    const sourceMatch = matchesByNumber.get(slot.matchNo);
+    const winner = matchWinner(sourceMatch);
+    if (winner === "home") {
+      return actualTeamSlot(sourceMatch?.homeTeamId, `Winner M${slot.matchNo}`);
+    }
+    if (winner === "away") {
+      return actualTeamSlot(sourceMatch?.awayTeamId, `Winner M${slot.matchNo}`);
+    }
     return { kind: "placeholder", label: `Winner M${slot.matchNo}` };
   };
 
   return ROUND_ORDER.map((round) => ({
-    matches: BRACKET.filter((match) => match.round === round).map((match) => ({
-      away: resolve(match.away),
-      home: resolve(match.home),
-      matchNo: match.matchNo,
-    })),
+    matches: BRACKET.filter((match) => match.round === round).map((match) => {
+      const actualMatch = matchesByNumber.get(match.matchNo);
+      const winner = matchWinner(actualMatch) ?? undefined;
+      const score =
+        actualMatch?.homeScore !== undefined && actualMatch.awayScore !== undefined
+          ? `${actualMatch.homeScore}-${actualMatch.awayScore}`
+          : undefined;
+
+      return {
+        away: actualMatch
+          ? actualTeamSlot(actualMatch.awayTeamId, resolve(match.away).label)
+          : resolve(match.away),
+        home: actualMatch
+          ? actualTeamSlot(actualMatch.homeTeamId, resolve(match.home).label)
+          : resolve(match.home),
+        matchNo: match.matchNo,
+        providerStatusCode: actualMatch?.providerStatusCode,
+        score,
+        status: actualMatch?.status,
+        winner,
+      };
+    }),
     round,
     title: ROUND_LABEL[round],
   }));

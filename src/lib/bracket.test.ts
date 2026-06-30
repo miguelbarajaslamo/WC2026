@@ -104,6 +104,40 @@ function makeData(): BootstrapData {
   } as BootstrapData;
 }
 
+function knockoutMatch({
+  awayScore,
+  awayTeamId,
+  homeScore,
+  homeTeamId,
+  id,
+  kickoffAt,
+  winner,
+}: {
+  awayScore: number;
+  awayTeamId: string;
+  homeScore: number;
+  homeTeamId: string;
+  id: string;
+  kickoffAt: string;
+  winner: Match["winner"];
+}): Match {
+  return {
+    ...baseMatch,
+    apiFootballFixtureId: Number(id),
+    awayScore,
+    awayTeamId,
+    groupName: undefined,
+    homeScore,
+    homeTeamId,
+    id,
+    kickoffAt,
+    providerStatusCode: "PEN",
+    stage: "Round of 32",
+    status: "finished",
+    winner,
+  } as Match;
+}
+
 describe("third-place allocation", () => {
   it("maps advancing third-place groups to the 2026 Round of 32 slots", () => {
     const groups = ["E", "F", "G", "H", "I", "J", "K", "L"];
@@ -129,6 +163,34 @@ describe("third-place allocation", () => {
     expect(roundOf32?.matches.find((match) => match.matchNo === 74)?.home).toMatchObject({
       kind: "team",
       label: "E1",
+    });
+  });
+
+  it("advances actual knockout winners into later rounds", () => {
+    const data = makeData();
+    data.matches.push(
+      knockoutMatch({
+        awayScore: 1,
+        awayTeamId: "B2",
+        homeScore: 1,
+        homeTeamId: "A2",
+        id: "7300",
+        kickoffAt: "2026-06-28T19:00:00.000Z",
+        winner: "away",
+      }),
+    );
+
+    const rounds = projectBracket(data);
+    const roundOf32 = rounds.find((round) => round.round === "R32");
+    const roundOf16 = rounds.find((round) => round.round === "R16");
+
+    expect(roundOf32?.matches.find((match) => match.matchNo === 73)).toMatchObject({
+      score: "1-1",
+      winner: "away",
+    });
+    expect(roundOf16?.matches.find((match) => match.matchNo === 90)?.home).toMatchObject({
+      kind: "team",
+      label: "B2",
     });
   });
 });
