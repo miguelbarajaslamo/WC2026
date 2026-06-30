@@ -119,6 +119,8 @@ export function MatchDetailView({
     },
     { away: 0, draw: 0, home: 0 },
   );
+  const minuteLabel = formatMinute(match);
+  const showMinuteLabel = !["FT", "HT", "PEN"].includes(minuteLabel);
 
   return (
     <div className="space-y-4">
@@ -145,7 +147,9 @@ export function MatchDetailView({
             status={match.status}
           />
           <div className="flex items-center gap-2.5">
-            <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
+            {showMinuteLabel ? (
+              <span className="font-mono text-sm font-black">{minuteLabel}</span>
+            ) : null}
             {match.status !== "finished" && data.authMode !== "demo" ? (
               <FollowStar matchId={match.id} userId={data.currentUserId} />
             ) : null}

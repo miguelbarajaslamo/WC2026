@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatMinute, scoreText, teamScoreText } from "@/lib/format";
+import {
+  formatMinute,
+  penaltyScoreText,
+  regularScoreText,
+  scoreText,
+  teamScoreText,
+} from "@/lib/format";
 import type { Match } from "@/lib/types";
 
 const baseMatch = {
@@ -27,6 +33,8 @@ describe("score formatting", () => {
     } as Match;
 
     expect(scoreText(match)).toBe("1(4)-1(5)");
+    expect(regularScoreText(match)).toBe("1-1");
+    expect(penaltyScoreText(match)).toBe("4-5");
     expect(teamScoreText(match.homeScore, match.homePenaltyScore)).toBe("1 (4)");
   });
 

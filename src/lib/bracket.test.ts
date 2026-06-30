@@ -113,16 +113,20 @@ function knockoutMatch({
   homeTeamId,
   id,
   kickoffAt,
+  stage = "Round of 32",
+  status = "finished",
   winner,
 }: {
   awayPenaltyScore?: number;
-  awayScore: number;
+  awayScore?: number;
   awayTeamId: string;
   homePenaltyScore?: number;
-  homeScore: number;
+  homeScore?: number;
   homeTeamId: string;
   id: string;
   kickoffAt: string;
+  stage?: string;
+  status?: Match["status"];
   winner: Match["winner"];
 }): Match {
   return {
@@ -137,9 +141,9 @@ function knockoutMatch({
     homeTeamId,
     id,
     kickoffAt,
-    providerStatusCode: "PEN",
-    stage: "Round of 32",
-    status: "finished",
+    providerStatusCode: status === "finished" ? "PEN" : "NS",
+    stage,
+    status,
     winner,
   } as Match;
 }
@@ -200,5 +204,72 @@ describe("third-place allocation", () => {
       kind: "team",
       label: "B2",
     });
+  });
+
+  it("ignores scheduled future fixture teams and projects from previous winners", () => {
+    const data = makeData();
+    data.matches.push(
+      knockoutMatch({
+        awayScore: 0,
+        awayTeamId: "B2",
+        homeScore: 1,
+        homeTeamId: "A2",
+        id: "7300",
+        kickoffAt: "2026-06-28T19:00:00.000Z",
+        winner: "home",
+      }),
+      knockoutMatch({
+        awayScore: 0,
+        awayTeamId: "A3",
+        homeScore: 2,
+        homeTeamId: "E1",
+        id: "7400",
+        kickoffAt: "2026-06-28T22:00:00.000Z",
+        winner: "home",
+      }),
+      knockoutMatch({
+        awayScore: 0,
+        awayTeamId: "C2",
+        homeScore: 1,
+        homeTeamId: "F1",
+        id: "7500",
+        kickoffAt: "2026-06-29T16:00:00.000Z",
+        winner: "home",
+      }),
+      knockoutMatch({
+        awayScore: 0,
+        awayTeamId: "F2",
+        homeScore: 1,
+        homeTeamId: "C1",
+        id: "7600",
+        kickoffAt: "2026-06-29T19:00:00.000Z",
+        winner: "home",
+      }),
+      knockoutMatch({
+        awayScore: 0,
+        awayTeamId: "C3",
+        homeScore: 1,
+        homeTeamId: "I1",
+        id: "7700",
+        kickoffAt: "2026-06-29T22:00:00.000Z",
+        winner: "home",
+      }),
+      knockoutMatch({
+        awayTeamId: "B2",
+        homeTeamId: "A2",
+        id: "8900",
+        kickoffAt: "2026-07-03T19:00:00.000Z",
+        stage: "Round of 16",
+        status: "scheduled",
+        winner: undefined,
+      }),
+    );
+
+    const rounds = projectBracket(data);
+    const roundOf16 = rounds.find((round) => round.round === "R16");
+    const match89 = roundOf16?.matches.find((match) => match.matchNo === 89);
+
+    expect(match89?.home).toMatchObject({ kind: "team", label: "E1" });
+    expect(match89?.away).toMatchObject({ kind: "team", label: "I1" });
   });
 });

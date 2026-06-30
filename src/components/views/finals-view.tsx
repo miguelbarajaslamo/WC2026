@@ -108,6 +108,14 @@ function MatchCard({
   rowSpan: number;
   start: number;
 }) {
+  const scoreLabel = match.score
+    ? match.providerStatusCode === "PEN" && !match.score.includes("(")
+      ? `${match.score} PEN`
+      : match.score
+    : match.status === "live"
+      ? "LIVE"
+      : "";
+
   return (
     <div
       className="z-10 self-center overflow-hidden rounded-md border border-black/10 bg-white shadow-sm"
@@ -117,11 +125,7 @@ function MatchCard({
         <div className="flex items-center justify-between gap-2">
           <span>M{match.matchNo}</span>
           <span className="font-mono text-stone-500">
-            {match.score
-              ? `${match.score}${match.providerStatusCode === "PEN" ? " PEN" : ""}`
-              : match.status === "live"
-                ? "LIVE"
-                : ""}
+            {scoreLabel}
           </span>
         </div>
       </div>

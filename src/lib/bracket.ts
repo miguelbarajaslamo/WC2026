@@ -300,14 +300,19 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
       const actualMatch = matchesByNumber.get(match.matchNo);
       const winner = matchWinner(actualMatch) ?? undefined;
       const score = bracketScore(actualMatch);
+      const resolvedHome = resolve(match.home);
+      const resolvedAway = resolve(match.away);
+      const useActualTeams =
+        Boolean(actualMatch) &&
+        (match.round === "R32" || actualMatch?.status !== "scheduled");
 
       return {
-        away: actualMatch
-          ? actualTeamSlot(actualMatch.awayTeamId, resolve(match.away).label)
-          : resolve(match.away),
-        home: actualMatch
-          ? actualTeamSlot(actualMatch.homeTeamId, resolve(match.home).label)
-          : resolve(match.home),
+        away: useActualTeams
+          ? actualTeamSlot(actualMatch?.awayTeamId, resolvedAway.label)
+          : resolvedAway,
+        home: useActualTeams
+          ? actualTeamSlot(actualMatch?.homeTeamId, resolvedHome.label)
+          : resolvedHome,
         matchNo: match.matchNo,
         providerStatusCode: actualMatch?.providerStatusCode,
         score,

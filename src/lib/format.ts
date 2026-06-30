@@ -77,14 +77,34 @@ export function scoreText(match: Match) {
     return "vs";
   }
 
-  if (
-    match.homePenaltyScore !== undefined &&
-    match.awayPenaltyScore !== undefined
-  ) {
+  if (hasPenaltyScore(match)) {
     return `${match.homeScore}(${match.homePenaltyScore})-${match.awayScore}(${match.awayPenaltyScore})`;
   }
 
   return `${match.homeScore}-${match.awayScore}`;
+}
+
+export function regularScoreText(match: Match) {
+  if (match.homeScore === undefined || match.awayScore === undefined) {
+    return "vs";
+  }
+
+  return `${match.homeScore}-${match.awayScore}`;
+}
+
+export function hasPenaltyScore(match: Match) {
+  return (
+    match.homePenaltyScore !== undefined &&
+    match.awayPenaltyScore !== undefined
+  );
+}
+
+export function penaltyScoreText(match: Match) {
+  if (!hasPenaltyScore(match)) {
+    return undefined;
+  }
+
+  return `${match.homePenaltyScore}-${match.awayPenaltyScore}`;
 }
 
 export function teamScoreText(score?: number, penaltyScore?: number) {

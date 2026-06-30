@@ -5,7 +5,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Flag } from "@/components/ui/flag";
 import { FormSquares } from "@/components/app/form-squares";
 import { StatusPill } from "@/components/ui/status-pill";
-import { formatMinute, scorersSummary, scoreText, teamScoreText } from "@/lib/format";
+import {
+  formatMinute,
+  penaltyScoreText,
+  regularScoreText,
+  scorersSummary,
+  scoreText,
+  teamScoreText,
+} from "@/lib/format";
 import {
   getMatchEvents,
   getTeam,
@@ -73,6 +80,11 @@ export function MatchRow({
   const searchParams = useSearchParams();
   const currentPath = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
   const matchHref = `/matches/${match.id}?from=${encodeURIComponent(currentPath)}`;
+  const penaltyScore = penaltyScoreText(match);
+  const clockText =
+    match.status === "live" && match.providerStatusCode.toUpperCase() !== "P"
+      ? formatMinute(match)
+      : null;
 
   return (
     <Link
@@ -98,7 +110,9 @@ export function MatchRow({
             providerStatusCode={match.providerStatusCode}
             status={match.status}
           />
-          <span className="font-mono text-sm font-black">{formatMinute(match)}</span>
+          {clockText ? (
+            <span className="font-mono text-sm font-black">{clockText}</span>
+          ) : null}
         </div>
       </div>
 
@@ -116,9 +130,20 @@ export function MatchRow({
           />
         </div>
         <div className="rounded-md bg-stone-100 px-2 py-3 text-center">
-          <p className="font-mono text-[15px] font-black tabular-nums">
-            {scoreText(match)}
-          </p>
+          {penaltyScore ? (
+            <>
+              <p className="font-mono text-xl font-black tabular-nums">
+                {regularScoreText(match)}
+              </p>
+              <p className="mt-1 font-mono text-[10px] font-black uppercase tracking-wide text-stone-500">
+                Pens {penaltyScore}
+              </p>
+            </>
+          ) : (
+            <p className="font-mono text-lg font-black tabular-nums">
+              {scoreText(match)}
+            </p>
+          )}
           <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-stone-500">
             Score
           </p>
