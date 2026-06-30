@@ -75,6 +75,18 @@ export const BRACKET: BracketMatch[] = [
 
 export const ROUND_ORDER: BracketRound[] = ["R32", "R16", "QF", "SF", "Final"];
 
+const ROUND_MATCH_ORDER: Record<BracketRound, number[]> = {
+  Final: [104],
+  QF: [97, 98, 99, 100],
+  R16: [89, 90, 93, 94, 91, 92, 95, 96],
+  R32: [74, 77, 73, 75, 83, 84, 81, 82, 76, 78, 79, 80, 86, 88, 85, 87],
+  SF: [101, 102],
+};
+
+const BRACKET_BY_MATCH_NO = new Map(
+  BRACKET.map((match) => [match.matchNo, match]),
+);
+
 export const ROUND_LABEL: Record<BracketRound, string> = {
   Final: "Final",
   QF: "Quarter-finals",
@@ -88,6 +100,7 @@ export type ResolvedSlot = {
   // "team" once we can name it; "placeholder" while it's a position/winner ref.
   kind: "placeholder" | "team";
   label: string;
+  teamId?: string;
 };
 
 export type BracketRoundView = {
@@ -189,32 +202,68 @@ function stageStart(stage: string): number | null {
   return null;
 }
 
-function bracketMatchesByNumber(matches: Match[]) {
-  const grouped = new Map<number, Match[]>();
+function roundStart(round: BracketRound): number {
+  if (round === "R32") {
+    return 73;
+  }
+  if (round === "R16") {
+    return 89;
+  }
+  if (round === "QF") {
+    return 97;
+  }
+  if (round === "SF") {
+    return 101;
+  }
+  return 104;
+}
 
-  for (const match of matches) {
-    const start = stageStart(match.stage);
-    if (!start) {
-      continue;
-    }
-    const list = grouped.get(start) ?? [];
-    list.push(match);
-    grouped.set(start, list);
+function matchHasTeam(match: Match, teamId: string) {
+  return match.homeTeamId === teamId || match.awayTeamId === teamId;
+}
+
+function matchHasBothTeams(match: Match, homeTeamId: string, awayTeamId: string) {
+  return (
+    (match.homeTeamId === homeTeamId && match.awayTeamId === awayTeamId) ||
+    (match.homeTeamId === awayTeamId && match.awayTeamId === homeTeamId)
+  );
+}
+
+function candidateMatchesForRound(matches: Match[], round: BracketRound) {
+  const start = roundStart(round);
+  return matches.filter((match) => stageStart(match.stage) === start);
+}
+
+function findActualMatchForSlots({
+  candidates,
+  resolvedAway,
+  resolvedHome,
+  usedMatchIds,
+}: {
+  candidates: Match[];
+  resolvedAway: ResolvedSlot;
+  resolvedHome: ResolvedSlot;
+  usedMatchIds: Set<string>;
+}) {
+  const available = candidates.filter((match) => !usedMatchIds.has(match.id));
+  const homeTeamId = resolvedHome.teamId;
+  const awayTeamId = resolvedAway.teamId;
+
+  if (homeTeamId && awayTeamId) {
+    return available.find((match) =>
+      matchHasBothTeams(match, homeTeamId, awayTeamId),
+    );
   }
 
-  const byNumber = new Map<number, Match>();
-  for (const [start, rows] of grouped.entries()) {
-    [...rows]
-      .sort(
-        (left, right) =>
-          new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime(),
-      )
-      .forEach((match, index) => {
-        byNumber.set(start + index, match);
-      });
+  if (homeTeamId) {
+    return available.find((match) => matchHasTeam(match, homeTeamId));
   }
 
-  return byNumber;
+  if (awayTeamId) {
+    return available.find((match) => matchHasTeam(match, awayTeamId));
+  }
+
+  return undefined;
 }
 
 function bracketScore(match: Match | undefined) {
@@ -241,7 +290,7 @@ function bracketScore(match: Match | undefined) {
 // resolve once we can rank eight projected third-place teams.
 export function projectBracket(data: BootstrapData): BracketRoundView[] {
   const teamById = new Map<string, Team>(data.teams.map((team) => [team.id, team]));
-  const matchesByNumber = bracketMatchesByNumber(data.matches);
+  const matchesByNumber = new Map<number, Match>();
   const sortedByGroup = new Map<string, StandingRow[]>();
   const projectedStandings = sortedLiveStandings(data);
   for (const [group, rows] of Object.entries(projectedStandings)) {
@@ -256,7 +305,7 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
     if (!team) {
       return { kind: "placeholder", label: fallback };
     }
-    return { iso2: team.iso2, kind: "team", label: team.shortName };
+    return { iso2: team.iso2, kind: "team", label: team.shortName, teamId: team.id };
   };
 
   const actualTeamSlot = (teamId: string | undefined, fallback: string): ResolvedSlot => {
@@ -264,7 +313,7 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
     if (!team) {
       return { kind: "placeholder", label: fallback };
     }
-    return { iso2: team.iso2, kind: "team", label: team.shortName };
+    return { iso2: team.iso2, kind: "team", label: team.shortName, teamId: team.id };
   };
 
   const resolve = (slot: Slot): ResolvedSlot => {
@@ -295,8 +344,36 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
     return { kind: "placeholder", label: `Winner M${slot.matchNo}` };
   };
 
+  const usedMatchIds = new Set<string>();
+  for (const round of ROUND_ORDER) {
+    const candidates = candidateMatchesForRound(data.matches, round);
+    for (const matchNo of ROUND_MATCH_ORDER[round]) {
+      const bracketMatch = BRACKET_BY_MATCH_NO.get(matchNo);
+      if (!bracketMatch) {
+        continue;
+      }
+      const resolvedHome = resolve(bracketMatch.home);
+      const resolvedAway = resolve(bracketMatch.away);
+      const actualMatch = findActualMatchForSlots({
+        candidates,
+        resolvedAway,
+        resolvedHome,
+        usedMatchIds,
+      });
+
+      if (actualMatch) {
+        matchesByNumber.set(matchNo, actualMatch);
+        usedMatchIds.add(actualMatch.id);
+      }
+    }
+  }
+
   return ROUND_ORDER.map((round) => ({
-    matches: BRACKET.filter((match) => match.round === round).map((match) => {
+    matches: ROUND_MATCH_ORDER[round].flatMap((matchNo) => {
+      const match = BRACKET_BY_MATCH_NO.get(matchNo);
+      if (!match) {
+        return [];
+      }
       const actualMatch = matchesByNumber.get(match.matchNo);
       const winner = matchWinner(actualMatch) ?? undefined;
       const score = bracketScore(actualMatch);

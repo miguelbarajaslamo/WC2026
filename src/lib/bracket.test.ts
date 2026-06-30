@@ -220,7 +220,7 @@ describe("third-place allocation", () => {
       }),
       knockoutMatch({
         awayScore: 0,
-        awayTeamId: "A3",
+        awayTeamId: "F3",
         homeScore: 2,
         homeTeamId: "E1",
         id: "7400",
@@ -247,7 +247,7 @@ describe("third-place allocation", () => {
       }),
       knockoutMatch({
         awayScore: 0,
-        awayTeamId: "C3",
+        awayTeamId: "G3",
         homeScore: 1,
         homeTeamId: "I1",
         id: "7700",
