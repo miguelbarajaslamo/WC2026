@@ -94,10 +94,12 @@ type TeamSquadMemberRow = {
 
 type MatchRow = {
   api_football_fixture_id: number | null;
+  away_penalty_score?: number | null;
   away_score: number | null;
   away_team_id: string;
   city: string | null;
   elapsed_minutes: number | null;
+  home_penalty_score?: number | null;
   group_name: string | null;
   home_score: number | null;
   home_team_id: string;
@@ -330,11 +332,13 @@ function mapMatch(row: MatchRow): Match {
     apiFootballFixtureId:
       row.api_football_fixture_id ??
       (Number.isFinite(fallbackFixtureId) ? fallbackFixtureId : 0),
+    awayPenaltyScore: row.away_penalty_score ?? undefined,
     awayScore: row.away_score ?? undefined,
     awayTeamId: row.away_team_id,
     city: row.city ?? "",
     elapsedMinutes: row.elapsed_minutes ?? undefined,
     groupName: normalizeWorldCupGroupName(row.group_name) ?? undefined,
+    homePenaltyScore: row.home_penalty_score ?? undefined,
     homeScore: row.home_score ?? undefined,
     homeTeamId: row.home_team_id,
     id: row.id,
@@ -794,12 +798,19 @@ export async function buildSupabaseBootstrapData({
             .range(from, to),
       ).then((data) => ({ data, error: null })),
     ),
-    selectMany<MatchRow>(
-      supabase
-        .from("matches")
-        .select(
-          "id,api_football_fixture_id,home_team_id,away_team_id,stage,group_name,venue,city,kickoff_at,prediction_lock_at,status,provider_status_code,elapsed_minutes,home_score,away_score,winner,last_synced_at",
-        ),
+    selectManyWithColumnFallback<MatchRow>(
+      () =>
+        supabase
+          .from("matches")
+          .select(
+            "id,api_football_fixture_id,home_team_id,away_team_id,stage,group_name,venue,city,kickoff_at,prediction_lock_at,status,provider_status_code,elapsed_minutes,home_score,away_score,home_penalty_score,away_penalty_score,winner,last_synced_at",
+          ),
+      () =>
+        supabase
+          .from("matches")
+          .select(
+            "id,api_football_fixture_id,home_team_id,away_team_id,stage,group_name,venue,city,kickoff_at,prediction_lock_at,status,provider_status_code,elapsed_minutes,home_score,away_score,winner,last_synced_at",
+          ),
     ),
     selectAllPaged<MatchEventRow>(async (from, to) =>
       selectManyWithColumnFallback<MatchEventRow>(

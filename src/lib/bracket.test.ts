@@ -105,16 +105,20 @@ function makeData(): BootstrapData {
 }
 
 function knockoutMatch({
+  awayPenaltyScore,
   awayScore,
   awayTeamId,
+  homePenaltyScore,
   homeScore,
   homeTeamId,
   id,
   kickoffAt,
   winner,
 }: {
+  awayPenaltyScore?: number;
   awayScore: number;
   awayTeamId: string;
+  homePenaltyScore?: number;
   homeScore: number;
   homeTeamId: string;
   id: string;
@@ -124,9 +128,11 @@ function knockoutMatch({
   return {
     ...baseMatch,
     apiFootballFixtureId: Number(id),
+    awayPenaltyScore,
     awayScore,
     awayTeamId,
     groupName: undefined,
+    homePenaltyScore,
     homeScore,
     homeTeamId,
     id,
@@ -170,8 +176,10 @@ describe("third-place allocation", () => {
     const data = makeData();
     data.matches.push(
       knockoutMatch({
+        awayPenaltyScore: 5,
         awayScore: 1,
         awayTeamId: "B2",
+        homePenaltyScore: 4,
         homeScore: 1,
         homeTeamId: "A2",
         id: "7300",
@@ -185,7 +193,7 @@ describe("third-place allocation", () => {
     const roundOf16 = rounds.find((round) => round.round === "R16");
 
     expect(roundOf32?.matches.find((match) => match.matchNo === 73)).toMatchObject({
-      score: "1-1",
+      score: "1(4)-1(5)",
       winner: "away",
     });
     expect(roundOf16?.matches.find((match) => match.matchNo === 90)?.home).toMatchObject({

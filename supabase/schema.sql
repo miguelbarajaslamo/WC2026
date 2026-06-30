@@ -148,6 +148,8 @@ create table if not exists public.matches (
   elapsed_minutes integer,
   home_score integer,
   away_score integer,
+  home_penalty_score integer check (home_penalty_score is null or home_penalty_score >= 0),
+  away_penalty_score integer check (away_penalty_score is null or away_penalty_score >= 0),
   winner public.predicted_result,
   last_synced_at timestamptz,
   updated_at timestamptz not null default now()

@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Flag } from "@/components/ui/flag";
 import { FormSquares } from "@/components/app/form-squares";
 import { StatusPill } from "@/components/ui/status-pill";
-import { formatMinute, scorersSummary, scoreText } from "@/lib/format";
+import { formatMinute, scorersSummary, scoreText, teamScoreText } from "@/lib/format";
 import {
   getMatchEvents,
   getTeam,
@@ -18,9 +18,11 @@ import { formatMatchTiming } from "@/lib/time";
 import type { BootstrapData, Match } from "@/lib/types";
 
 function TeamLine({
+  penaltyScore,
   score,
   team,
 }: {
+  penaltyScore?: number;
   score?: number;
   team: ReturnType<typeof getTeam>;
 }) {
@@ -32,7 +34,7 @@ function TeamLine({
         <FormSquares form={team.recentForm} interactive={false} size="sm" />
       </span>
       <span className="font-mono text-base font-black tabular-nums">
-        {score ?? "-"}
+        {teamScoreText(score, penaltyScore)}
       </span>
     </div>
   );
@@ -97,13 +99,23 @@ export function MatchRow({
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_56px] items-center gap-3">
+      <div className="grid grid-cols-[1fr_78px] items-center gap-3">
         <div className="space-y-2">
-          <TeamLine score={match.homeScore} team={home} />
-          <TeamLine score={match.awayScore} team={away} />
+          <TeamLine
+            penaltyScore={match.homePenaltyScore}
+            score={match.homeScore}
+            team={home}
+          />
+          <TeamLine
+            penaltyScore={match.awayPenaltyScore}
+            score={match.awayScore}
+            team={away}
+          />
         </div>
         <div className="rounded-md bg-stone-100 px-2 py-3 text-center">
-          <p className="font-mono text-lg font-black">{scoreText(match)}</p>
+          <p className="font-mono text-[15px] font-black tabular-nums">
+            {scoreText(match)}
+          </p>
           <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-stone-500">
             Score
           </p>

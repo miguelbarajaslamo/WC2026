@@ -71,5 +71,24 @@ export function scoreText(match: Match) {
     return "vs";
   }
 
+  if (
+    match.homePenaltyScore !== undefined &&
+    match.awayPenaltyScore !== undefined
+  ) {
+    return `${match.homeScore}(${match.homePenaltyScore})-${match.awayScore}(${match.awayPenaltyScore})`;
+  }
+
   return `${match.homeScore}-${match.awayScore}`;
+}
+
+export function teamScoreText(score?: number, penaltyScore?: number) {
+  if (score === undefined) {
+    return "-";
+  }
+
+  if (penaltyScore !== undefined) {
+    return `${score} (${penaltyScore})`;
+  }
+
+  return String(score);
 }

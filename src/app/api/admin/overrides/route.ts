@@ -51,10 +51,12 @@ type QueryResult<T> = PromiseLike<{
 }>;
 
 const allowedMatchFields = [
+  "away_penalty_score",
   "away_score",
   "away_team_id",
   "city",
   "elapsed_minutes",
+  "home_penalty_score",
   "home_score",
   "home_team_id",
   "kickoff_at",
@@ -121,11 +123,13 @@ function mapPrediction(row: {
 
 function mapMatch(row: {
   api_football_fixture_id: number | null;
+  away_penalty_score?: number | null;
   away_score: number | null;
   away_team_id: string;
   city: string | null;
   elapsed_minutes: number | null;
   group_name: string | null;
+  home_penalty_score?: number | null;
   home_score: number | null;
   home_team_id: string;
   id: string;
@@ -144,11 +148,13 @@ function mapMatch(row: {
     apiFootballFixtureId:
       row.api_football_fixture_id ??
       (Number.isFinite(numericFixtureId) ? numericFixtureId : 0),
+    awayPenaltyScore: row.away_penalty_score ?? undefined,
     awayScore: row.away_score ?? undefined,
     awayTeamId: row.away_team_id,
     city: row.city ?? "",
     elapsedMinutes: row.elapsed_minutes ?? undefined,
     groupName: row.group_name ?? undefined,
+    homePenaltyScore: row.home_penalty_score ?? undefined,
     homeScore: row.home_score ?? undefined,
     homeTeamId: row.home_team_id,
     id: row.id,

@@ -217,6 +217,25 @@ function bracketMatchesByNumber(matches: Match[]) {
   return byNumber;
 }
 
+function bracketScore(match: Match | undefined) {
+  if (
+    !match ||
+    match.homeScore === undefined ||
+    match.awayScore === undefined
+  ) {
+    return undefined;
+  }
+
+  if (
+    match.homePenaltyScore !== undefined &&
+    match.awayPenaltyScore !== undefined
+  ) {
+    return `${match.homeScore}(${match.homePenaltyScore})-${match.awayScore}(${match.awayPenaltyScore})`;
+  }
+
+  return `${match.homeScore}-${match.awayScore}`;
+}
+
 // Project the bracket against current live standings. Winners/runners-up
 // resolve as soon as teams are present in a group table; third-place slots
 // resolve once we can rank eight projected third-place teams.
@@ -280,10 +299,7 @@ export function projectBracket(data: BootstrapData): BracketRoundView[] {
     matches: BRACKET.filter((match) => match.round === round).map((match) => {
       const actualMatch = matchesByNumber.get(match.matchNo);
       const winner = matchWinner(actualMatch) ?? undefined;
-      const score =
-        actualMatch?.homeScore !== undefined && actualMatch.awayScore !== undefined
-          ? `${actualMatch.homeScore}-${actualMatch.awayScore}`
-          : undefined;
+      const score = bracketScore(actualMatch);
 
       return {
         away: actualMatch

@@ -68,6 +68,12 @@ type ApiFootballFixture = {
     away: number | null;
     home: number | null;
   };
+  score?: {
+    penalty?: {
+      away?: number | null;
+      home?: number | null;
+    };
+  };
   league: {
     id: number;
     round?: string;
@@ -838,10 +844,12 @@ async function upsertLiveFixtures(
 
     return {
       api_football_fixture_id: item.fixture.id,
+      away_penalty_score: item.score?.penalty?.away ?? null,
       away_score: item.goals.away,
       away_team_id: awayTeam.id,
       city: item.fixture.venue?.city,
       elapsed_minutes: item.fixture.status.elapsed,
+      home_penalty_score: item.score?.penalty?.home ?? null,
       home_score: item.goals.home,
       home_team_id: homeTeam.id,
       id: String(item.fixture.id),

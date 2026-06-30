@@ -29,16 +29,19 @@ import {
   getTeam,
   getVisibleMatches,
 } from "@/lib/data/selectors";
+import { scoreText } from "@/lib/format";
 import { formatMatchTiming } from "@/lib/time";
 import { specialLabels } from "@/lib/specials";
 import type { BonusPickType, EventType, MatchStatus } from "@/lib/types";
 
 type MatchFormState = {
+  awayPenaltyScore: string;
   awayScore: string;
   awayTeamId: string;
   city: string;
   elapsedMinutes: string;
   homeTeamId: string;
+  homePenaltyScore: string;
   homeScore: string;
   kickoffAt: string;
   lockAt: string;
@@ -137,11 +140,13 @@ function numberOrZero(value: string) {
 }
 
 function matchFormFromMatch(match: {
+  awayPenaltyScore?: number;
   awayScore?: number;
   awayTeamId: string;
   city: string;
   elapsedMinutes?: number;
   homeTeamId: string;
+  homePenaltyScore?: number;
   homeScore?: number;
   kickoffAt: string;
   predictionLockAt: string;
@@ -150,12 +155,16 @@ function matchFormFromMatch(match: {
   venue: string;
 }): MatchFormState {
   return {
+    awayPenaltyScore:
+      match.awayPenaltyScore === undefined ? "" : String(match.awayPenaltyScore),
     awayScore: match.awayScore === undefined ? "" : String(match.awayScore),
     awayTeamId: match.awayTeamId,
     city: match.city,
     elapsedMinutes:
       match.elapsedMinutes === undefined ? "" : String(match.elapsedMinutes),
     homeTeamId: match.homeTeamId,
+    homePenaltyScore:
+      match.homePenaltyScore === undefined ? "" : String(match.homePenaltyScore),
     homeScore: match.homeScore === undefined ? "" : String(match.homeScore),
     kickoffAt: toInputDateTime(match.kickoffAt),
     lockAt: toInputDateTime(match.predictionLockAt),
@@ -167,11 +176,13 @@ function matchFormFromMatch(match: {
 
 function emptyMatchForm(): MatchFormState {
   return {
+    awayPenaltyScore: "",
     awayScore: "",
     awayTeamId: "",
     city: "",
     elapsedMinutes: "",
     homeTeamId: "",
+    homePenaltyScore: "",
     homeScore: "",
     kickoffAt: "",
     lockAt: "",
@@ -645,7 +656,7 @@ export function AdminView() {
           <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-md bg-stone-50 p-3">
             <TeamBadge team={selectedTeams[0]} />
             <span className="font-mono text-lg font-black">
-              {selectedMatch.homeScore ?? "-"}-{selectedMatch.awayScore ?? "-"}
+              {scoreText(selectedMatch)}
             </span>
             <TeamBadge align="right" team={selectedTeams[1]} />
           </div>
@@ -687,6 +698,30 @@ export function AdminView() {
                 })
               }
               value={matchForm.awayScore}
+            />
+          </Field>
+          <Field label="Home pens">
+            <input
+              className="input"
+              inputMode="numeric"
+              onChange={(event) =>
+                updateMatchForm({
+                  homePenaltyScore: event.target.value,
+                })
+              }
+              value={matchForm.homePenaltyScore}
+            />
+          </Field>
+          <Field label="Away pens">
+            <input
+              className="input"
+              inputMode="numeric"
+              onChange={(event) =>
+                updateMatchForm({
+                  awayPenaltyScore: event.target.value,
+                })
+              }
+              value={matchForm.awayPenaltyScore}
             />
           </Field>
           <Field label="Status">
@@ -799,10 +834,12 @@ export function AdminView() {
               actionLabel: "Match correction",
               overrideType: "match",
               payload: {
+                away_penalty_score: nullableNumber(matchForm.awayPenaltyScore),
                 away_score: nullableNumber(matchForm.awayScore),
                 away_team_id: matchForm.awayTeamId,
                 city: matchForm.city,
                 elapsed_minutes: nullableNumber(matchForm.elapsedMinutes),
+                home_penalty_score: nullableNumber(matchForm.homePenaltyScore),
                 home_score: nullableNumber(matchForm.homeScore),
                 home_team_id: matchForm.homeTeamId,
                 kickoff_at: fromInputDateTime(matchForm.kickoffAt),

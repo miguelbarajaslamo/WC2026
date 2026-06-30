@@ -85,6 +85,8 @@ export type Match = {
   elapsedMinutes?: number;
   homeScore?: number;
   awayScore?: number;
+  homePenaltyScore?: number;
+  awayPenaltyScore?: number;
   winner?: PredictionResult;
   lastSyncedAt?: string;
 };
