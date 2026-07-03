@@ -51,7 +51,8 @@ export function ScoringStagesCard({ data }: { data: BootstrapData }) {
           <h2 className="font-black">Score prediction by stage</h2>
           <p className="mt-1 text-xs font-bold text-stone-500">
             On = full score prediction. Off = result only (1X2). New picks
-            follow this per match stage.
+            follow this per match stage. Knockout scores are after 120 minutes,
+            excluding penalties.
           </p>
         </div>
         {saving ? (

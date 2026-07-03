@@ -16,6 +16,20 @@ export function isValidPredictionScore(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 30;
 }
 
+export function scoreContradictsAdvancement({
+  awayScore,
+  homeScore,
+  result,
+}: {
+  awayScore: number;
+  homeScore: number;
+  result: PredictionResult;
+}) {
+  const scoreWinner = scoreResult(homeScore, awayScore);
+
+  return scoreWinner !== "draw" && scoreWinner !== result;
+}
+
 export function predictionResultLabel({
   awayShortName,
   homeShortName,

@@ -122,6 +122,7 @@ type PredictionRow = {
   match_id: string;
   pool_id: string;
   predicted_result: Prediction["predictedResult"];
+  score_prediction_enabled?: boolean | null;
   updated_at: string;
   user_id: string;
 };
@@ -362,6 +363,7 @@ function mapPrediction(row: PredictionRow): Prediction {
     matchId: row.match_id,
     poolId: row.pool_id,
     predictedResult: row.predicted_result,
+    scorePredictionEnabled: row.score_prediction_enabled ?? undefined,
     updatedAt: row.updated_at,
     userId: row.user_id,
   };
@@ -830,16 +832,29 @@ export async function buildSupabaseBootstrapData({
             .range(from, to),
       ).then((data) => ({ data, error: null })),
     ),
-    selectAllPaged<PredictionRow>((from, to) =>
-      supabase
-        .from("predictions")
-        .select(
-          "id,pool_id,match_id,user_id,predicted_result,home_score,away_score,locked_at,updated_at",
-        )
-        .eq("pool_id", pool.id)
-        .order("updated_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
+    selectAllPaged<PredictionRow>(async (from, to) =>
+      selectManyWithColumnFallback<PredictionRow>(
+        () =>
+          supabase
+            .from("predictions")
+            .select(
+              "id,pool_id,match_id,user_id,predicted_result,home_score,away_score,score_prediction_enabled,locked_at,updated_at",
+            )
+            .eq("pool_id", pool.id)
+            .order("updated_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        () =>
+          supabase
+            .from("predictions")
+            .select(
+              "id,pool_id,match_id,user_id,predicted_result,home_score,away_score,locked_at,updated_at",
+            )
+            .eq("pool_id", pool.id)
+            .order("updated_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+      ).then((data) => ({ data, error: null })),
     ),
     selectAllPaged<MatchPlayerStatRow>((from, to) =>
       supabase

@@ -106,6 +106,7 @@ function mapPrediction(row: {
   match_id: string;
   pool_id: string;
   predicted_result: Prediction["predictedResult"];
+  score_prediction_enabled?: boolean | null;
   updated_at?: string;
   user_id: string;
 }): Prediction {
@@ -116,6 +117,7 @@ function mapPrediction(row: {
     matchId: row.match_id,
     poolId: row.pool_id,
     predictedResult: row.predicted_result,
+    scorePredictionEnabled: row.score_prediction_enabled ?? undefined,
     updatedAt: row.updated_at ?? new Date().toISOString(),
     userId: row.user_id,
   };
@@ -522,12 +524,13 @@ async function recalculateMatchScores({
         match_id: string;
         pool_id: string;
         predicted_result: Prediction["predictedResult"];
+        score_prediction_enabled?: boolean | null;
         updated_at?: string;
         user_id: string;
       }>((from, to) =>
         admin
           .from("predictions")
-          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score,updated_at")
+          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score,score_prediction_enabled,updated_at")
           .eq("pool_id", poolId)
           .eq("match_id", matchId)
           .order("user_id", { ascending: true })

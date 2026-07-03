@@ -68,7 +68,10 @@ export function matchFinishedResult(match: Match): PredictionResult | null {
 }
 
 export function calculateTraditionalScore(
-  prediction: Pick<Prediction, "awayScore" | "homeScore" | "predictedResult">,
+  prediction: Pick<
+    Prediction,
+    "awayScore" | "homeScore" | "predictedResult" | "scorePredictionEnabled"
+  >,
   finalScore: FinishedScore | null,
   // 1X2 (result-only) matches never award the exact-score bonus.
   scorePrediction = true,
@@ -86,6 +89,7 @@ export function calculateTraditionalScore(
 
   if (
     scorePrediction &&
+    prediction.scorePredictionEnabled !== false &&
     prediction.homeScore === finalScore.homeScore &&
     prediction.awayScore === finalScore.awayScore
   ) {
@@ -112,7 +116,10 @@ export function calculatePotScores({
   finalScore: FinishedScore | null;
   finalResult?: PredictionResult | null;
   predictions: Array<
-    Pick<Prediction, "awayScore" | "homeScore" | "id" | "predictedResult">
+    Pick<
+      Prediction,
+      "awayScore" | "homeScore" | "id" | "predictedResult" | "scorePredictionEnabled"
+    >
   >;
   // 1X2 (result-only) matches never award the exact-score bonus.
   scorePrediction?: boolean;
@@ -138,6 +145,7 @@ export function calculatePotScores({
     ? predictions
         .filter(
           (prediction) =>
+            prediction.scorePredictionEnabled !== false &&
             prediction.homeScore === finalScore.homeScore &&
             prediction.awayScore === finalScore.awayScore,
         )

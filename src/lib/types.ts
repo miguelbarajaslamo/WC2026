@@ -130,6 +130,7 @@ export type Prediction = {
   predictedResult: PredictionResult;
   homeScore: number;
   awayScore: number;
+  scorePredictionEnabled?: boolean;
   lockedAt?: string;
   updatedAt: string;
 };

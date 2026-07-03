@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
+import {
+  isValidPredictionScore,
+  scoreContradictsAdvancement,
+  scoreResult,
+} from "@/lib/predictions";
 
 describe("prediction helpers", () => {
   it("derives 1X2 from the submitted score", () => {
@@ -15,5 +19,25 @@ describe("prediction helpers", () => {
     expect(isValidPredictionScore(31)).toBe(false);
     expect(isValidPredictionScore(1.5)).toBe(false);
     expect(isValidPredictionScore("2")).toBe(false);
+  });
+
+  it("allows a team to advance after a tied score", () => {
+    expect(
+      scoreContradictsAdvancement({
+        awayScore: 2,
+        homeScore: 2,
+        result: "home",
+      }),
+    ).toBe(false);
+  });
+
+  it("blocks a score that has the opposite team winning before penalties", () => {
+    expect(
+      scoreContradictsAdvancement({
+        awayScore: 3,
+        homeScore: 2,
+        result: "home",
+      }),
+    ).toBe(true);
   });
 });

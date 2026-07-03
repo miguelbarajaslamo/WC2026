@@ -163,6 +163,7 @@ create table if not exists public.predictions (
   predicted_result public.predicted_result not null,
   home_score integer not null check (home_score >= 0 and home_score <= 30),
   away_score integer not null check (away_score >= 0 and away_score <= 30),
+  score_prediction_enabled boolean not null default false,
   locked_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

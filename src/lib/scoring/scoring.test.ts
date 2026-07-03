@@ -36,6 +36,21 @@ describe("calculateTraditionalScore", () => {
     ).toEqual({ points: 6, reason: "exact_score" });
   });
 
+  it("does not award exact-score bonus for old result-only picks", () => {
+    expect(
+      calculateTraditionalScore(
+        {
+          ...basePrediction,
+          awayScore: 1,
+          homeScore: 2,
+          predictedResult: "home",
+          scorePredictionEnabled: false,
+        },
+        { homeScore: 2, awayScore: 1 },
+      ),
+    ).toEqual({ points: 3, reason: "correct_result" });
+  });
+
   it("awards correct winner or draw only", () => {
     expect(
       calculateTraditionalScore(

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { isValidPredictionScore, scoreResult } from "@/lib/predictions";
+import {
+  isValidPredictionScore,
+  scoreContradictsAdvancement,
+  scoreResult,
+} from "@/lib/predictions";
 import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -64,9 +68,10 @@ export async function POST(request: Request) {
   }
 
   const knockout = isKnockoutStage(match.stage);
-  const useScore =
-    !knockout &&
-    matchUsesScorePrediction(pool.score_prediction_stages ?? [], match.stage);
+  const useScore = matchUsesScorePrediction(
+    pool.score_prediction_stages ?? [],
+    match.stage,
+  );
 
   let predictedResult: PredictionResult;
   let homeScore: number;
@@ -81,7 +86,33 @@ export async function POST(request: Request) {
     }
     homeScore = payload.homeScore;
     awayScore = payload.awayScore;
-    predictedResult = scoreResult(homeScore, awayScore);
+    if (knockout) {
+      if (
+        !payload.result ||
+        payload.result === "draw" ||
+        !RESULTS.includes(payload.result)
+      ) {
+        return NextResponse.json(
+          { error: "Knockout score picks must choose who advances" },
+          { status: 400 },
+        );
+      }
+      if (
+        scoreContradictsAdvancement({
+          awayScore,
+          homeScore,
+          result: payload.result,
+        })
+      ) {
+        return NextResponse.json(
+          { error: "Score cannot contradict who advances" },
+          { status: 400 },
+        );
+      }
+      predictedResult = payload.result;
+    } else {
+      predictedResult = scoreResult(homeScore, awayScore);
+    }
   } else {
     // 1X2: a result-only pick. Scores are stored as 0-0 and ignored by scoring.
     if (!payload.result || !RESULTS.includes(payload.result)) {
@@ -111,6 +142,7 @@ export async function POST(request: Request) {
         match_id: payload.matchId,
         pool_id: payload.poolId,
         predicted_result: predictedResult,
+        score_prediction_enabled: useScore,
         updated_at: new Date().toISOString(),
         user_id: user.id,
       },

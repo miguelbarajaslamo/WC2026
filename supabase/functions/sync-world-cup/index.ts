@@ -203,6 +203,7 @@ type PredictionRow = {
   match_id: string;
   pool_id: string;
   predicted_result: "home" | "draw" | "away";
+  score_prediction_enabled?: boolean | null;
   user_id: string;
 };
 
@@ -1728,7 +1729,7 @@ async function recalculateFinishedFixtures(
       const predictions = await selectAllPaged<PredictionRow>((from, to) =>
         supabase
           .from("predictions")
-          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score")
+          .select("id,pool_id,match_id,user_id,predicted_result,home_score,away_score,score_prediction_enabled")
           .eq("pool_id", pool.id)
           .eq("match_id", match.id)
           .order("user_id", { ascending: true })
@@ -1757,6 +1758,7 @@ async function recalculateFinishedFixtures(
       const scoreRows = predictions.map((prediction) => {
         const exact =
           scorePrediction &&
+          prediction.score_prediction_enabled !== false &&
           prediction.home_score === match.home_score &&
           prediction.away_score === match.away_score;
         const correctResult = prediction.predicted_result === finalResult;

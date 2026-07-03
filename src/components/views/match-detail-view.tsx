@@ -109,9 +109,10 @@ export function MatchDetailView({
   const predictions = getMatchPredictions(data, match.id);
   const locked = isMatchLocked(match);
   const knockout = isKnockoutStage(match.stage);
-  const useScore =
-    !knockout &&
-    matchUsesScorePrediction(data.pool.scorePredictionStages, match.stage);
+  const useScore = matchUsesScorePrediction(
+    data.pool.scorePredictionStages,
+    match.stage,
+  );
   const distribution = predictions.reduce(
     (counts, prediction) => {
       counts[prediction.predictedResult] += 1;

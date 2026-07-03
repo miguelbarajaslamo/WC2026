@@ -9,7 +9,7 @@ import { FormSquares } from "@/components/app/form-squares";
 import { usePicksSave } from "@/components/app/picks-save-context";
 import { cn } from "@/lib/cn";
 import { getTeam, getUserPrediction, isMatchLocked } from "@/lib/data/selectors";
-import { scoreResult } from "@/lib/predictions";
+import { scoreContradictsAdvancement, scoreResult } from "@/lib/predictions";
 import { isKnockoutStage, matchUsesScorePrediction } from "@/lib/stages";
 import { formatMatchTiming } from "@/lib/time";
 import type {
@@ -32,11 +32,15 @@ export function InlinePredictionPicker({
 }) {
   const existing = getUserPrediction(data, match.id);
   const knockout = isKnockoutStage(match.stage);
+  const useScore = matchUsesScorePrediction(
+    data.pool.scorePredictionStages,
+    match.stage,
+  );
   const validExisting =
     knockout && existing?.predictedResult === "draw" ? undefined : existing;
-  const useScore =
-    !knockout &&
-    matchUsesScorePrediction(data.pool.scorePredictionStages, match.stage);
+  const existingHasScorePrediction =
+    !validExisting || validExisting.scorePredictionEnabled !== false;
+  const scoreModeSaved = Boolean(validExisting && existingHasScorePrediction);
 
   const [homeScore, setHomeScore] = useState(validExisting?.homeScore ?? 0);
   const [awayScore, setAwayScore] = useState(validExisting?.awayScore ?? 0);
@@ -44,12 +48,14 @@ export function InlinePredictionPicker({
     validExisting?.predictedResult ?? "",
   );
   const [lastSavedScore, setLastSavedScore] = useState(
-    validExisting ? `${validExisting.homeScore}-${validExisting.awayScore}` : "",
+    scoreModeSaved ? `${validExisting?.homeScore}-${validExisting?.awayScore}` : "",
   );
   const [lastSavedResult, setLastSavedResult] = useState<PredictionResult | "">(
     validExisting?.predictedResult ?? "",
   );
-  const [hasSaved, setHasSaved] = useState(validExisting != null);
+  const [hasSaved, setHasSaved] = useState(
+    validExisting != null && (!useScore || scoreModeSaved),
+  );
   const [saveFailed, setSaveFailed] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,13 +65,31 @@ export function InlinePredictionPicker({
   const locked = isMatchLocked(match);
   const home = getTeam(data, match.homeTeamId);
   const away = getTeam(data, match.awayTeamId);
+  const needsAdvancementPick = useScore && knockout;
 
   const dirty = useScore
-    ? `${homeScore}-${awayScore}` !== lastSavedScore
+    ? `${homeScore}-${awayScore}` !== lastSavedScore ||
+      (needsAdvancementPick && result !== lastSavedResult)
     : result !== lastSavedResult;
-  const canSave = dirty && (useScore || (result !== "" && !(knockout && result === "draw")));
+  const contradictsAdvancement =
+    needsAdvancementPick &&
+    result !== "" &&
+    scoreContradictsAdvancement({
+      awayScore,
+      homeScore,
+      result,
+    });
+  const hasRequiredResult =
+    !knockout || (result !== "" && result !== "draw");
+  const canSave =
+    dirty &&
+    (useScore
+      ? (!needsAdvancementPick || hasRequiredResult) && !contradictsAdvancement
+      : result !== "" && !(knockout && result === "draw"));
   const predictedResult: PredictionResult = useScore
-    ? scoreResult(homeScore, awayScore)
+    ? needsAdvancementPick
+      ? result || "draw"
+      : scoreResult(homeScore, awayScore)
     : result || "draw";
 
   async function savePrediction() {
@@ -112,7 +136,13 @@ export function InlinePredictionPicker({
       const response = await fetch("/api/predictions", {
         body: JSON.stringify(
           useScore
-            ? { awayScore, homeScore, matchId: match.id, poolId: data.pool.id }
+            ? {
+                awayScore,
+                homeScore,
+                matchId: match.id,
+                poolId: data.pool.id,
+                ...(needsAdvancementPick && { result }),
+              }
             : { matchId: match.id, poolId: data.pool.id, result },
         ),
         headers: { "Content-Type": "application/json" },
@@ -132,7 +162,7 @@ export function InlinePredictionPicker({
       }
 
       setLastSavedScore(`${homeScore}-${awayScore}`);
-      setLastSavedResult(result);
+      setLastSavedResult(needsAdvancementPick ? result : predictedResult);
       setHasSaved(true);
       void queryClient.invalidateQueries({ queryKey: bootstrapQueryKey });
     } catch {
@@ -176,7 +206,7 @@ export function InlinePredictionPicker({
           <h2 className={cn("font-black", compact ? "text-sm" : "text-base")}>
             {compact
               ? `${home.shortName} vs ${away.shortName}`
-              : knockout
+              : knockout && !useScore
                 ? "Who advances?"
                 : "Your prediction"}
           </h2>
@@ -211,28 +241,66 @@ export function InlinePredictionPicker({
       </div>
 
       {useScore ? (
-        <div className="mt-4 space-y-2">
-          <ScoreLine
-            disabled={locked}
-            form={home.recentForm}
-            iso2={home.iso2}
-            label={home.shortName}
-            onChange={setHomeScore}
-            side="home"
-            teamName={home.name}
-            value={homeScore}
-          />
-          <ScoreLine
-            disabled={locked}
-            form={away.recentForm}
-            iso2={away.iso2}
-            label={away.shortName}
-            onChange={setAwayScore}
-            side="away"
-            teamName={away.name}
-            value={awayScore}
-          />
-        </div>
+        <>
+          <div className="mt-4 space-y-2">
+            <ScoreLine
+              disabled={locked}
+              form={home.recentForm}
+              iso2={home.iso2}
+              label={home.shortName}
+              onChange={setHomeScore}
+              side="home"
+              teamName={home.name}
+              value={homeScore}
+            />
+            <ScoreLine
+              disabled={locked}
+              form={away.recentForm}
+              iso2={away.iso2}
+              label={away.shortName}
+              onChange={setAwayScore}
+              side="away"
+              teamName={away.name}
+              value={awayScore}
+            />
+          </div>
+          {needsAdvancementPick ? (
+            <>
+              <p className="mt-3 text-[11px] font-black uppercase tracking-wide text-stone-500">
+                Who advances?
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <ResultButton
+                  disabled={locked}
+                  label={home.shortName}
+                  onClick={() => setResult("home")}
+                  selected={result === "home"}
+                  sub="Advances"
+                />
+                <ResultButton
+                  disabled={locked}
+                  label={away.shortName}
+                  onClick={() => setResult("away")}
+                  selected={result === "away"}
+                  sub="Advances"
+                />
+              </div>
+              <p
+                className={cn(
+                  "mt-2 text-xs font-bold",
+                  contradictsAdvancement ? "text-red-700" : "text-stone-500",
+                )}
+              >
+                Score is after 120 minutes, excluding penalties.
+              </p>
+              {contradictsAdvancement ? (
+                <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                  Score cannot contradict who advances.
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </>
       ) : (
         <>
           <div className="mt-4 space-y-2">
