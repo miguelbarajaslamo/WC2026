@@ -384,58 +384,86 @@ async function runSyncMode(
 async function runFormSync(
   supabase: ReturnType<typeof createClient>,
 ): Promise<SyncResult> {
-  const { data: teams } = await supabase.from("teams").select("id");
-  const finished = new Set(["FT", "AET", "PEN"]);
-  let requestsUsed = 0;
+  // Compute form from our own finished matches instead of API-Football's `last`
+  // parameter — that parameter now 403s on the account's plan, and it was
+  // overwriting good form with an empty list. Zero API calls, and it only ever
+  // reflects real tournament results we already store.
+  const [{ data: teams }, { data: matches }] = await Promise.all([
+    supabase.from("teams").select("id,name"),
+    supabase
+      .from("matches")
+      .select("home_team_id,away_team_id,home_score,away_score,winner,kickoff_at")
+      .eq("status", "finished")
+      .not("home_score", "is", null)
+      .not("away_score", "is", null)
+      .order("kickoff_at", { ascending: true }),
+  ]);
 
+  const teamName = new Map((teams ?? []).map((team) => [String(team.id), team.name]));
+  type FormEntry = {
+    competition: string;
+    date: string;
+    ga: number;
+    gf: number;
+    opponent: string;
+    result: "D" | "L" | "W";
+    wc: boolean;
+  };
+  const byTeam = new Map<string, FormEntry[]>();
+
+  const add = (
+    teamId: string,
+    opponentId: string,
+    gf: number,
+    ga: number,
+    won: boolean | null,
+    date: string,
+  ) => {
+    const result: FormEntry["result"] =
+      won === true ? "W" : won === false ? "L" : gf > ga ? "W" : gf < ga ? "L" : "D";
+    const list = byTeam.get(teamId) ?? [];
+    list.push({
+      competition: "World Cup",
+      date,
+      ga,
+      gf,
+      opponent: teamName.get(opponentId) ?? "TBD",
+      result,
+      wc: true,
+    });
+    byTeam.set(teamId, list);
+  };
+
+  for (const match of matches ?? []) {
+    const home = String(match.home_team_id);
+    const away = String(match.away_team_id);
+    const homeWon =
+      match.winner === "home" ? true : match.winner === "away" ? false : null;
+    add(home, away, match.home_score, match.away_score, homeWon, match.kickoff_at);
+    add(
+      away,
+      home,
+      match.away_score,
+      match.home_score,
+      homeWon === null ? null : !homeWon,
+      match.kickoff_at,
+    );
+  }
+
+  let updated = 0;
   for (const team of teams ?? []) {
-    const numericId = Number(team.id);
-    if (!Number.isFinite(numericId)) {
+    const entries = (byTeam.get(String(team.id)) ?? []).slice(-5);
+    // Never wipe existing form with an empty list.
+    if (entries.length === 0) {
       continue;
     }
-
-    const response = await fetchApiFootball("/fixtures", {
-      team: numericId,
-      last: 5,
-    });
-    requestsUsed += 1;
-
-    const entries = (response.response ?? [])
-      .filter(
-        (item: ApiFootballFixture) =>
-          finished.has(item.fixture?.status?.short) &&
-          item.goals?.home !== null &&
-          item.goals?.away !== null,
-      )
-      .map((item: ApiFootballFixture) => {
-        const isHome = String(item.teams?.home?.id) === String(team.id);
-        const gf = (isHome ? item.goals.home : item.goals.away) ?? 0;
-        const ga = (isHome ? item.goals.away : item.goals.home) ?? 0;
-        const opponent = isHome ? item.teams?.away?.name : item.teams?.home?.name;
-        return {
-          date: item.fixture.date,
-          competition:
-            (item.league as { name?: string }).name ?? "",
-          wc: item.league?.id === 1,
-          opponent: opponent ?? "TBD",
-          gf,
-          ga,
-          result: gf > ga ? "W" : gf < ga ? "L" : "D",
-        };
-      })
-      .sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-      );
-
-    await supabase
-      .from("teams")
-      .update({ recent_form: entries })
-      .eq("id", team.id);
+    await supabase.from("teams").update({ recent_form: entries }).eq("id", team.id);
+    updated += 1;
   }
 
   return {
-    message: `Recent form synced for ${teams?.length ?? 0} teams.`,
-    requestsUsed,
+    message: `Recent form synced from own results for ${updated} teams.`,
+    requestsUsed: 0,
   };
 }
 
