@@ -122,4 +122,23 @@ describe("admin recalculation helpers", () => {
       { points: 0, reason: "incorrect", user_id: "u3" },
     ]);
   });
+
+  it("scores finalist picks slot-agnostically (unordered pair)", () => {
+    const rows = buildBonusScoreRows({
+      picks: [
+        // u1 put Spain in slot 1, u2 put Spain in slot 2 — both must score.
+        bonusPick("u1", "bonus-finalist-esp", "finalist", 1),
+        bonusPick("u2", "bonus-finalist-esp", "finalist", 2),
+        bonusPick("u3", "bonus-finalist-ger", "finalist", 1),
+      ],
+      poolId: "pool",
+      winners: [{ optionId: "bonus-finalist-esp", slot: 1, type: "finalist" }],
+    });
+
+    expect(rows).toMatchObject([
+      { points: 5, reason: "correct", slot: 1, user_id: "u1" },
+      { points: 5, reason: "correct", slot: 2, user_id: "u2" },
+      { points: 0, reason: "incorrect", slot: 1, user_id: "u3" },
+    ]);
+  });
 });

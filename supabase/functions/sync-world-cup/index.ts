@@ -574,6 +574,8 @@ async function runLiveLoop(supabase: ReturnType<typeof createClient>): Promise<S
       // Groups updates within the same minute (the provider's standings lag).
       if (syncTargets.finishedMatchIds.length > 0) {
         await recalculateGroupStandings(supabase);
+        // Semi/final results settle finalist/champion specials the same minute.
+        await settleSpecials(supabase);
       }
 
       if (tick < 3) {
@@ -732,6 +734,7 @@ async function runReferenceSync(
   if (syncTargets.finishedMatchIds.length > 0) {
     await recalculateFinishedFixtures(supabase, syncTargets.finishedMatchIds);
   }
+  await settleSpecials(supabase);
 
   return {
     message: `Reference schedule synced: ${syncTargets.fixtureIds.length} fixtures.`,
@@ -769,10 +772,15 @@ async function runSquadSync(
 async function runPostMatchSync(
   supabase: ReturnType<typeof createClient>,
 ): Promise<SyncResult> {
+  // Only recently finished matches: refetching the whole tournament (60+
+  // matches × 2 API calls) blows the function's compute budget. Older finals
+  // are immutable anyway.
+  const recentSince = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data: finishedMatches } = await supabase
     .from("matches")
     .select("id,api_football_fixture_id")
-    .eq("status", "finished");
+    .eq("status", "finished")
+    .gte("kickoff_at", recentSince);
   let requestsUsed = 0;
   const matchIds: string[] = [];
 
@@ -797,6 +805,7 @@ async function runPostMatchSync(
 
   await recalculateFinishedFixtures(supabase, matchIds);
   await recalculateTournamentPlayerStats(supabase);
+  await settleSpecials(supabase);
 
   return {
     message: `Post-match events and player stats synced for ${matchIds.length} fixtures.`,
@@ -1713,6 +1722,215 @@ async function fetchAllMatchPlayerStats(
   }
 
   return rows;
+}
+
+// Settle tournament specials automatically from finished knockout results:
+// finalists as soon as each semi-final ends, champion when the final ends,
+// and the stat-based specials (top scorer, most assists, most cards country)
+// once the tournament is over. Ties all win. Idempotent — safe to run on
+// every sync tick; the admin panel can still override winners manually.
+async function settleSpecials(supabase: ReturnType<typeof createClient>) {
+  const { data: koMatches } = await supabase
+    .from("matches")
+    .select("stage,status,home_team_id,away_team_id,winner")
+    .eq("status", "finished")
+    .not("stage", "ilike", "%group%");
+
+  const isFinalStage = (stage: string) => {
+    const value = stage.toLowerCase();
+    return (
+      value.includes("final") &&
+      !value.includes("semi") &&
+      !value.includes("quarter") &&
+      !value.includes("3rd") &&
+      !value.includes("third") &&
+      !value.includes("place")
+    );
+  };
+
+  const finalistTeams = new Set<string>();
+  let championTeam: string | null = null;
+
+  for (const match of koMatches ?? []) {
+    const stage = (match.stage ?? "").toLowerCase();
+    const winnerTeam =
+      match.winner === "home"
+        ? String(match.home_team_id)
+        : match.winner === "away"
+          ? String(match.away_team_id)
+          : null;
+
+    if (stage.includes("semi") && winnerTeam) {
+      finalistTeams.add(winnerTeam);
+    }
+    if (isFinalStage(match.stage ?? "")) {
+      // Both final participants are finalists even if a semi row was missed.
+      finalistTeams.add(String(match.home_team_id));
+      finalistTeams.add(String(match.away_team_id));
+      if (winnerTeam) {
+        championTeam = winnerTeam;
+      }
+    }
+  }
+
+  if (finalistTeams.size === 0 && !championTeam) {
+    return;
+  }
+
+  // type → winning team/player ids
+  const teamWinners: Array<{ id: string; type: string }> = [
+    ...[...finalistTeams].map((teamId) => ({ id: teamId, type: "finalist" })),
+  ];
+  const playerWinners: Array<{ id: string; type: string }> = [];
+
+  if (championTeam) {
+    teamWinners.push({ id: championTeam, type: "champion" });
+
+    // Tournament over → settle the stat specials. Ties all win.
+    const { data: statRows } = await supabase
+      .from("tournament_player_stat_snapshots")
+      .select("player_id,goals,assists")
+      .not("player_id", "is", null);
+    const topBy = (key: "assists" | "goals") => {
+      const max = Math.max(0, ...(statRows ?? []).map((row) => row[key] ?? 0));
+      return max > 0
+        ? (statRows ?? [])
+            .filter((row) => (row[key] ?? 0) === max)
+            .map((row) => String(row.player_id))
+        : [];
+    };
+    for (const playerId of topBy("goals")) {
+      playerWinners.push({ id: playerId, type: "top_scorer" });
+    }
+    for (const playerId of topBy("assists")) {
+      playerWinners.push({ id: playerId, type: "most_assists" });
+    }
+
+    const { data: cardRows } = await supabase
+      .from("match_player_stats")
+      .select("team_id,yellow_cards,red_cards")
+      .not("team_id", "is", null);
+    const cardPoints = new Map<string, number>();
+    for (const row of cardRows ?? []) {
+      const points = (row.yellow_cards ?? 0) + (row.red_cards ?? 0) * 2;
+      cardPoints.set(
+        String(row.team_id),
+        (cardPoints.get(String(row.team_id)) ?? 0) + points,
+      );
+    }
+    const maxCards = Math.max(0, ...cardPoints.values());
+    if (maxCards > 0) {
+      for (const [teamId, points] of cardPoints) {
+        if (points === maxCards) {
+          teamWinners.push({ id: teamId, type: "most_cards_country" });
+        }
+      }
+    }
+  }
+
+  // Resolve winner ids to bonus options with targeted queries — an unfiltered
+  // select would hit PostgREST's 1000-row cap (player options alone exceed it).
+  const { data: teamOptions } =
+    teamWinners.length > 0
+      ? await supabase
+          .from("bonus_pick_options")
+          .select("id,type,team_id")
+          .in("type", [...new Set(teamWinners.map((winner) => winner.type))])
+          .in("team_id", [...new Set(teamWinners.map((winner) => winner.id))])
+      : { data: [] };
+  const { data: playerOptions } =
+    playerWinners.length > 0
+      ? await supabase
+          .from("bonus_pick_options")
+          .select("id,type,player_id")
+          .in("type", [...new Set(playerWinners.map((winner) => winner.type))])
+          .in("player_id", [...new Set(playerWinners.map((winner) => winner.id))])
+      : { data: [] };
+
+  const winnerOptionIds = [
+    ...teamWinners.map((winner) => ({
+      option_id: (teamOptions ?? []).find(
+        (option) =>
+          option.type === winner.type && String(option.team_id) === winner.id,
+      )?.id,
+      type: winner.type,
+    })),
+    ...playerWinners.map((winner) => ({
+      option_id: (playerOptions ?? []).find(
+        (option) =>
+          option.type === winner.type && String(option.player_id) === winner.id,
+      )?.id,
+      type: winner.type,
+    })),
+  ].filter((winner): winner is { option_id: string; type: string } =>
+    Boolean(winner.option_id),
+  );
+
+  if (winnerOptionIds.length === 0) {
+    return;
+  }
+
+  const { data: pools } = await supabase.from("pools").select("id");
+
+  for (const pool of pools ?? []) {
+    await supabase.from("bonus_winners").upsert(
+      winnerOptionIds.map((winner) => ({
+        option_id: winner.option_id,
+        pool_id: pool.id,
+        slot: 1,
+        type: winner.type,
+      })),
+      { onConflict: "pool_id,type,slot,option_id" },
+    );
+
+    // Recalculate this pool's bonus snapshots. Finalists are an unordered
+    // pair, so finalist picks match winners regardless of slot.
+    const [{ data: winners }, { data: picks }] = await Promise.all([
+      supabase
+        .from("bonus_winners")
+        .select("type,slot,option_id")
+        .eq("pool_id", pool.id),
+      supabase
+        .from("bonus_picks")
+        .select("pool_id,user_id,type,slot,option_id")
+        .eq("pool_id", pool.id),
+    ]);
+
+    const bonusPoints: Record<string, number> = {
+      champion: 10,
+      finalist: 5,
+      most_assists: 6,
+      most_cards_country: 6,
+      top_scorer: 8,
+    };
+    const rows = (picks ?? []).flatMap((pick) => {
+      const matching = (winners ?? []).filter(
+        (winner) =>
+          winner.type === pick.type &&
+          (pick.type === "finalist" || (winner.slot ?? 1) === (pick.slot ?? 1)),
+      );
+      if (matching.length === 0) {
+        return [];
+      }
+      const won = matching.some((winner) => winner.option_id === pick.option_id);
+      return [
+        {
+          points: won ? bonusPoints[pick.type] ?? 0 : 0,
+          pool_id: pool.id,
+          reason: won ? "correct" : "incorrect",
+          slot: pick.slot ?? 1,
+          type: pick.type,
+          user_id: pick.user_id,
+        },
+      ];
+    });
+
+    if (rows.length > 0) {
+      await supabase
+        .from("bonus_score_snapshots")
+        .upsert(rows, { onConflict: "pool_id,user_id,type,slot" });
+    }
+  }
 }
 
 async function recalculateFinishedFixtures(

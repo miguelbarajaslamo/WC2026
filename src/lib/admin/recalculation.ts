@@ -106,8 +106,13 @@ export function buildBonusScoreRows({
   winners: BonusWinner[];
 }): BonusScoreSnapshotUpsert[] {
   return picks.flatMap((pick) => {
+    // Finalists are an unordered pair: a Spain pick saved as "Finalist 2" must
+    // score when Spain reaches the final, regardless of which slot the winner
+    // row (or the pick) used. Other types are single-slot, so slots match.
     const matchingWinners = winners.filter(
-      (item) => item.type === pick.type && item.slot === pick.slot,
+      (item) =>
+        item.type === pick.type &&
+        (pick.type === "finalist" || item.slot === pick.slot),
     );
 
     if (matchingWinners.length === 0) {
