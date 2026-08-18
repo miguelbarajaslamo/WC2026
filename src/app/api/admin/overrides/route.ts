@@ -191,7 +191,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Match, event, and stat overrides affect global tournament data and are restricted to Miguel.",
+          "Match, event, and stat overrides affect global tournament data and are restricted to the tournament operator.",
       },
       { status: 403 },
     );

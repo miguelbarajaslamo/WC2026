@@ -1,5 +1,6 @@
 import { startOfDay } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isSystemAdminEmail } from "@/lib/admin/access";
 import { supportedBonusPickTypes } from "@/lib/types";
 import type {
   BonusPick,
@@ -1011,8 +1012,7 @@ export async function buildSupabaseBootstrapData({
     currentMemberRole: currentMembership.role,
     currentUserEmail: userEmail,
     currentUserId: userId,
-    currentUserIsSystemAdmin:
-      userEmail?.toLowerCase() === "miguelbarajas@live.se",
+    currentUserIsSystemAdmin: isSystemAdminEmail(userEmail),
     adminOverrides: adminOverrides.map(mapAdminOverride),
     events: mappedEvents,
     generatedAt: new Date().toISOString(),

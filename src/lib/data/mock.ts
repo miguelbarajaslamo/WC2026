@@ -530,7 +530,7 @@ export function buildMockBootstrapData(): BootstrapData {
     authMode: "demo",
     generatedAt: formatISO(now),
     currentUserId: "user-miguel",
-    currentUserEmail: "miguelbarajas@live.se",
+    currentUserEmail: "demo@example.com",
     currentUserIsSystemAdmin: true,
     currentMemberRole: "admin",
     pool: {

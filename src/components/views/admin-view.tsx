@@ -1216,8 +1216,8 @@ export function AdminView() {
           <h2 className="font-black text-stone-950">Global overrides locked</h2>
           <p className="mt-2 text-sm font-bold leading-6 text-stone-700">
             Match score, event, stat, and bonus-winner overrides change shared
-            tournament data for every pool. Those tools are restricted to
-            miguelbarajas@live.se. Pool invite and member tools above still work
+            tournament data for every pool. Those tools are restricted to the
+            tournament operator. Pool invite and member tools above still work
             for pool admins.
           </p>
         </section>
