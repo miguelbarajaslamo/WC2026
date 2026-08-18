@@ -212,7 +212,6 @@ export function MatchDetailView({
           away={away}
           events={allEvents}
           home={home}
-          isDemo={data.authMode === "demo"}
           matchId={match.id}
         />
       ) : (

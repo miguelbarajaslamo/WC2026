@@ -18,9 +18,11 @@ Most of it was written with AI assistance, which is visible in the commit traile
 
 ## Screenshots
 
-| Pool standings | Your picks | Knockout bracket |
-|---|---|---|
-| ![Pool standings](docs/screenshots/standings.png) | ![Match picks](docs/screenshots/predictions.png) | ![Knockout bracket](docs/screenshots/bracket.png) |
+| Pool standings | Your picks |
+|---|---|
+| ![Pool standings](docs/screenshots/standings.png) | ![Match picks](docs/screenshots/predictions.png) |
+| **Knockout bracket** | **Line-ups** |
+| ![Knockout bracket](docs/screenshots/bracket.png) | ![Line-ups with goals and cards](docs/screenshots/lineups.png) |
 
 Names in the demo and in these screenshots are aliases; the matches, results and
 points are real.

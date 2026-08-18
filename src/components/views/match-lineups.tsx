@@ -159,19 +159,17 @@ export function MatchLineups({
   away,
   events,
   home,
-  isDemo,
   matchId,
 }: {
   away: Team;
   events: MatchEvent[];
   home: Team;
-  isDemo: boolean;
   matchId: string;
 }) {
   const [view, setView] = useState<"away" | "full" | "home">("full");
 
   const { data: lineups } = useQuery({
-    enabled: Boolean(matchId) && !isDemo,
+    enabled: Boolean(matchId),
     queryFn: async () => {
       const supabase = createSupabaseBrowserClient();
       const { data } = await supabase
