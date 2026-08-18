@@ -1,15 +1,38 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { DEMO_COOKIE, isDemoRequest } from "@/lib/api/demo";
 import { requireEnv } from "@/lib/env";
 
 // Routes reachable without a session. Everything else requires the user to be
 // signed in; unauthenticated visitors are redirected to /login.
-const PUBLIC_PREFIXES = ["/login", "/auth", "/invite"];
+const PUBLIC_PREFIXES = ["/login", "/auth", "/invite", "/demo"];
+
+// Screens a demo visitor may browse. Admin and settings are account-level
+// surfaces with nothing to show without a session, so they stay behind login.
+const DEMO_PREFIXES = [
+  "/",
+  "/fixtures",
+  "/groups",
+  "/leaderboard",
+  "/matches",
+  "/members",
+  "/picks",
+  "/players",
+  "/pool",
+  "/stats",
+  "/teams",
+];
+
+function matchesPrefix(pathname: string, prefixes: string[]) {
+  return prefixes.some(
+    (prefix) =>
+      pathname === prefix ||
+      (prefix !== "/" && pathname.startsWith(`${prefix}/`)),
+  );
+}
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return matchesPrefix(pathname, PUBLIC_PREFIXES);
 }
 
 export async function proxy(request: NextRequest) {
@@ -46,6 +69,16 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname, search } = request.nextUrl;
+
+  // A demo visitor has no session on purpose. Let them read the tour screens;
+  // every write endpoint still requires getUser() and rejects them.
+  if (
+    !user &&
+    isDemoRequest(request.cookies.get(DEMO_COOKIE)?.value) &&
+    matchesPrefix(pathname, DEMO_PREFIXES)
+  ) {
+    return supabaseResponse;
+  }
 
   if (!user && !isPublicPath(pathname)) {
     const loginUrl = request.nextUrl.clone();

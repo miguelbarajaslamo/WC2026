@@ -162,6 +162,18 @@ export function LoginView() {
             ? "Need an account? Create one"
             : "Already have an account? Sign in"}
         </button>
+
+        <div className="mt-5 border-t border-stone-200 pt-4">
+          <a
+            className="block w-full rounded-lg border border-stone-300 py-3 text-center text-sm font-bold text-stone-700"
+            href="/demo"
+          >
+            Take a look around first
+          </a>
+          <p className="mt-2 text-center text-xs font-bold text-stone-500">
+            Read-only tour. No account needed.
+          </p>
+        </div>
       </form>
     </div>
   );

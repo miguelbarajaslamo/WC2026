@@ -1,5 +1,32 @@
 # WORLD CUP PICKS Operations
 
+## System admin
+
+Match, event, and stat overrides are restricted to a single operator account,
+identified by the `SYSTEM_ADMIN_EMAIL` environment variable on the web app
+(Vercel Project Settings, and `.env.local` for development).
+
+The check fails closed: if the variable is unset or empty, the overrides
+endpoint returns 403 for everyone. Set it before relying on admin tooling in a
+new deployment.
+
+## Demo mode
+
+`/demo` sets a short-lived cookie and drops a visitor into a read-only tour of
+the real pool: real matches, real results, real scoring, with member names
+replaced by aliases and avatars stripped.
+
+The tour has no Supabase session. Every write endpoint calls `getUser()` and
+rejects it, so read-only needs no separate enforcement — **do not add an API
+route that writes without checking `getUser()`**.
+
+The seat it looks through is `DEMO_USER_ID`, or the `SYSTEM_ADMIN_EMAIL`
+account when that is unset. It reads through the service-role client because
+the visitor has no session for RLS to key off, so it requires
+`SUPABASE_SERVICE_ROLE_KEY` on the web app, not only on the Edge Functions.
+
+To turn the tour off, remove `/demo` from `PUBLIC_PREFIXES` in `src/proxy.ts`.
+
 ## Supabase
 
 Run `supabase/schema.sql` in the SQL editor for the initial schema. The schema includes tables for pools, profiles, teams, matches, match events, match player stats, predictions, standings, score snapshots, bonus picks, invites, sync runs, and admin overrides.
